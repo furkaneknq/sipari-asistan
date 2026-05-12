@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import (
     QDialog,
     QDoubleSpinBox,
@@ -138,6 +139,8 @@ class ProductsPanel(QWidget):
 
         new_prod_btn = QPushButton("+ Yeni Ürün")
         new_prod_btn.setObjectName("SuccessButton")
+        new_prod_btn.setShortcut(QKeySequence("F2"))
+        new_prod_btn.setToolTip("Yeni ürün ekle (F2)")
         new_prod_btn.clicked.connect(self._add_product)
 
         prod_layout = QVBoxLayout()

@@ -6,7 +6,7 @@ import sys
 from typing import Any
 
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QGuiApplication
+from PyQt6.QtGui import QGuiApplication, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QApplication,
     QDialog,
@@ -92,6 +92,9 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.couriers_panel, "🏍️ Kuryeler")
         self.tabs.addTab(self.settings_panel, "⚙️ Ayarlar")
 
+        # Global klavye kısayolları (sekme değiştirme + yardım)
+        self._setup_global_shortcuts()
+
         # Olay bağlantıları
         self.orders_panel.create_order_requested.connect(self._open_new_order)
         self.orders_panel.open_order_requested.connect(self._open_order)
@@ -148,6 +151,44 @@ class MainWindow(QMainWindow):
 
     def _on_listener_status(self, msg: str) -> None:
         self.status_bar.showMessage(msg, 5000)
+
+    # ------------------------------------------------------------------
+    def _setup_global_shortcuts(self) -> None:
+        """Global klavye kısayolları:
+        Ctrl+1..6 → sekme değiştir, F1 → kısayol yardımı."""
+        # Ctrl+1 .. Ctrl+6 → ilgili sekmeyi aç
+        for i in range(self.tabs.count()):
+            sc = QShortcut(QKeySequence(f"Ctrl+{i + 1}"), self)
+            sc.activated.connect(lambda idx=i: self.tabs.setCurrentIndex(idx))
+        # F1 → kısayol yardımı
+        help_sc = QShortcut(QKeySequence("F1"), self)
+        help_sc.activated.connect(self._show_shortcuts_help)
+
+    def _show_shortcuts_help(self) -> None:
+        """Tüm klavye kısayollarını gösteren yardım dialog'u."""
+        html = """
+        <h3>⌨ Klavye Kısayolları</h3>
+        <table cellspacing="6" cellpadding="2">
+          <tr><th align="left">Tuş</th><th align="left">İşlem</th></tr>
+          <tr><td><b>Ctrl+1..6</b></td><td>Sekmeler arası geçiş</td></tr>
+          <tr><td><b>F1</b></td><td>Bu yardım penceresi</td></tr>
+          <tr><td><b>F5</b></td><td>Listeyi yenile</td></tr>
+          <tr><td colspan="2"><i>—— Siparişler sekmesi ——</i></td></tr>
+          <tr><td><b>F2</b></td><td>Yeni sipariş</td></tr>
+          <tr><td><b>F3</b></td><td>Seçili siparişi düzenle</td></tr>
+          <tr><td><b>Del</b></td><td>Seçili siparişi sil</td></tr>
+          <tr><td><b>Ctrl+P</b></td><td>Adisyon yazdır</td></tr>
+          <tr><td><b>Ctrl+D</b></td><td>Teslim edildi olarak işaretle</td></tr>
+          <tr><td colspan="2"><i>—— Müşteriler sekmesi ——</i></td></tr>
+          <tr><td><b>F2</b></td><td>Yeni müşteri</td></tr>
+          <tr><td><b>F3</b></td><td>Müşteriyi düzenle</td></tr>
+          <tr><td><b>Del</b></td><td>Müşteriyi sil</td></tr>
+          <tr><td><b>Ctrl+F</b></td><td>Arama kutusuna odaklan</td></tr>
+          <tr><td colspan="2"><i>—— Ürünler / Kuryeler ——</i></td></tr>
+          <tr><td><b>F2</b></td><td>Yeni ürün / yeni kurye</td></tr>
+        </table>
+        """
+        QMessageBox.information(self, "Klavye Kısayolları", html)
 
     # ==================================================================
     # Olay yöneticileri

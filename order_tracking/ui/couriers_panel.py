@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -87,6 +88,8 @@ class CouriersPanel(QWidget):
         # Üst toolbar
         new_btn = QPushButton("+ Yeni Kurye")
         new_btn.setObjectName("SuccessButton")
+        new_btn.setShortcut(QKeySequence("F2"))
+        new_btn.setToolTip("Yeni kurye ekle (F2)")
         new_btn.clicked.connect(self._add_courier)
 
         toolbar = QHBoxLayout()

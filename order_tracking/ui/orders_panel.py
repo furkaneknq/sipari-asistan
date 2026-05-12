@@ -12,7 +12,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from PyQt6.QtCore import QDate, Qt, pyqtSignal
-from PyQt6.QtGui import QAction, QFont
+from PyQt6.QtGui import QAction, QFont, QKeySequence
 from PyQt6.QtWidgets import (
     QCalendarWidget,
     QCheckBox,
@@ -159,23 +159,33 @@ class OrdersPanel(QWidget):
         f_layout.addWidget(self.courier_filter_combo)
         filter_box.setLayout(f_layout)
 
-        # İşlem butonları
+        # İşlem butonları (kısayol tuşları ile)
         new_btn = QPushButton("+ Yeni Sipariş")
         new_btn.setObjectName("SuccessButton")
+        new_btn.setShortcut(QKeySequence("F2"))
+        new_btn.setToolTip("Yeni sipariş oluştur (F2)")
         new_btn.clicked.connect(lambda: self.create_order_requested.emit(None))
 
         edit_btn = QPushButton("✏ Sipariş Düzelt")
+        edit_btn.setShortcut(QKeySequence("F3"))
+        edit_btn.setToolTip("Seçili siparişi düzenle (F3)")
         edit_btn.clicked.connect(self._edit_selected)
 
         delete_btn = QPushButton("🗑 Sil")
         delete_btn.setObjectName("DangerButton")
+        delete_btn.setShortcut(QKeySequence("Delete"))
+        delete_btn.setToolTip("Seçili siparişi sil (Del)")
         delete_btn.clicked.connect(self._delete_selected)
 
         print_btn = QPushButton("🖨 Sipariş Yazdır")
+        print_btn.setShortcut(QKeySequence("Ctrl+P"))
+        print_btn.setToolTip("Adisyon yazdır (Ctrl+P)")
         print_btn.clicked.connect(self._print_selected)
 
         deliver_btn = QPushButton("✓ Teslim Edildi")
         deliver_btn.setObjectName("SuccessButton")
+        deliver_btn.setShortcut(QKeySequence("Ctrl+D"))
+        deliver_btn.setToolTip("Seçili siparişi 'Teslim Edildi' yap (Ctrl+D)")
         deliver_btn.clicked.connect(self._mark_delivered)
 
         self.auto_refresh_check = QCheckBox("Listeyi otomatik güncelle")
@@ -220,7 +230,8 @@ class OrdersPanel(QWidget):
 
         refresh_btn = QPushButton("🔄")
         refresh_btn.setObjectName("SecondaryButton")
-        refresh_btn.setToolTip("Yenile")
+        refresh_btn.setToolTip("Yenile (F5)")
+        refresh_btn.setShortcut(QKeySequence("F5"))
         refresh_btn.setMaximumWidth(40)
         refresh_btn.clicked.connect(self.refresh)
 

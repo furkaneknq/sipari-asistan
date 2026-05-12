@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QAction, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
@@ -44,15 +44,26 @@ class CustomersPanel(QWidget):
 
         new_btn = QPushButton("+ Yeni Müşteri")
         new_btn.setObjectName("SuccessButton")
+        new_btn.setShortcut(QKeySequence("F2"))
+        new_btn.setToolTip("Yeni müşteri ekle (F2)")
         new_btn.clicked.connect(self.new_customer_requested.emit)
 
         edit_btn = QPushButton("✏ Düzenle")
         edit_btn.setObjectName("SecondaryButton")
+        edit_btn.setShortcut(QKeySequence("F3"))
+        edit_btn.setToolTip("Seçili müşteriyi düzenle (F3)")
         edit_btn.clicked.connect(self._edit_selected)
 
         delete_btn = QPushButton("🗑 Sil")
         delete_btn.setObjectName("DangerButton")
+        delete_btn.setShortcut(QKeySequence("Delete"))
+        delete_btn.setToolTip("Seçili müşteriyi sil (Del)")
         delete_btn.clicked.connect(self._delete_selected)
+
+        # Ctrl+F: Arama kutusuna odaklan
+        search_sc = QShortcut(QKeySequence("Ctrl+F"), self)
+        search_sc.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        search_sc.activated.connect(self._focus_search)
 
         import_btn = QPushButton("📥 Excel'den Aktar")
         import_btn.setObjectName("SecondaryButton")
@@ -93,6 +104,11 @@ class CustomersPanel(QWidget):
         layout.addWidget(self.table, 1)
 
     # ------------------------------------------------------------------
+    def _focus_search(self) -> None:
+        """Ctrl+F: Arama kutusuna odaklan ve içeriği seç."""
+        self.search_input.setFocus()
+        self.search_input.selectAll()
+
     def refresh(self) -> None:
         search = self.search_input.text().strip()
         try:
