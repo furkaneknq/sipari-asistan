@@ -57,7 +57,7 @@ class CustomersPanel(QWidget):
         delete_btn = QPushButton("🗑 Sil")
         delete_btn.setObjectName("DangerButton")
         delete_btn.setShortcut(QKeySequence("Delete"))
-        delete_btn.setToolTip("Seçili müşteriyi sil (Del)")
+        delete_btn.setToolTip("Seçili müşteri(ler)i sil (Del)")
         delete_btn.clicked.connect(self._delete_selected)
 
         # Ctrl+F: Arama kutusuna odaklan
@@ -93,6 +93,7 @@ class CustomersPanel(QWidget):
         )
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
         self.table.setSortingEnabled(True)
         self.table.setAlternatingRowColors(True)
         self.table.cellDoubleClicked.connect(self._on_double_click)
@@ -144,11 +145,24 @@ class CustomersPanel(QWidget):
 
     # ------------------------------------------------------------------
     def _selected_customer_id(self) -> str | None:
+        """En son seçili (current) tek müşteri."""
         row = self.table.currentRow()
         if row < 0:
             return None
         item = self.table.item(row, 0)
         return item.data(Qt.ItemDataRole.UserRole) if item else None
+
+    def _selected_customer_ids(self) -> list[str]:
+        """Tüm seçili müşteri ID'lerini döndür."""
+        rows = sorted({idx.row() for idx in self.table.selectedIndexes()})
+        result: list[str] = []
+        for row in rows:
+            item = self.table.item(row, 0)
+            if item:
+                cid = item.data(Qt.ItemDataRole.UserRole)
+                if cid:
+                    result.append(cid)
+        return result
 
     def _on_double_click(self, _row: int, _col: int) -> None:
         cid = self._selected_customer_id()
@@ -163,39 +177,34 @@ class CustomersPanel(QWidget):
         self.open_customer_requested.emit(cid)
 
     def _delete_selected(self) -> None:
-        cid = self._selected_customer_id()
-        if not cid:
+        cids = self._selected_customer_ids()
+        if not cids:
             QMessageBox.information(self, "Seçim", "Önce silinecek müşteriyi seçin.")
             return
-        # Müşterinin sipariş sayısı varsa uyar
-        try:
-            count = customers_db.count_customer_orders(cid)
-        except Exception:  # noqa: BLE001
-            count = 0
-        warn = ""
-        if count > 0:
-            warn = (
-                f"\n\nUYARI: Bu müşterinin {count} adet siparişi var. "
-                "Müşteri silinirse bu siparişlerin müşteri bağlantısı kopar "
-                "ve veritabanı bütünlüğü hatası alabilirsin."
-            )
+        count = len(cids)
+        if count == 1:
+            text = "Bu müşteri ve tüm adresleri kalıcı olarak silinecek."
+        else:
+            text = f"{count} müşteri ve tüm adresleri kalıcı olarak silinecek."
         confirm = QMessageBox.question(
-            self,
-            "Müşteriyi Sil",
-            f"Bu müşteri ve tüm adresleri kalıcı olarak silinecek.{warn}\n\n"
-            "Onaylıyor musun?",
+            self, "Müşteriyi Sil", f"{text}\n\nOnaylıyor musun?"
         )
         if confirm != QMessageBox.StandardButton.Yes:
             return
-        try:
-            customers_db.delete_customer(cid)
-            self.refresh()
-        except Exception as exc:  # noqa: BLE001
+        errors: list[str] = []
+        for cid in cids:
+            try:
+                customers_db.delete_customer(cid)
+            except Exception as exc:  # noqa: BLE001
+                errors.append(str(exc))
+        self.refresh()
+        if errors:
             QMessageBox.critical(
                 self,
                 "Silme Hatası",
-                f"Müşteri silinemedi.\n\n{exc}\n\n"
-                "Eğer aktif siparişleri varsa önce o siparişleri silin.",
+                f"{len(errors)} müşteri silinemedi.\n\n"
+                + "\n".join(errors[:5])
+                + ("\n…" if len(errors) > 5 else ""),
             )
 
     # ------------------------------------------------------------------

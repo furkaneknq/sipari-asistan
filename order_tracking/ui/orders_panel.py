@@ -174,7 +174,7 @@ class OrdersPanel(QWidget):
         delete_btn = QPushButton("🗑 Sil")
         delete_btn.setObjectName("DangerButton")
         delete_btn.setShortcut(QKeySequence("Delete"))
-        delete_btn.setToolTip("Seçili siparişi sil (Del)")
+        delete_btn.setToolTip("Seçili sipariş(ler)i sil (Del)")
         delete_btn.clicked.connect(self._delete_selected)
 
         print_btn = QPushButton("🖨 Sipariş Yazdır")
@@ -185,7 +185,7 @@ class OrdersPanel(QWidget):
         deliver_btn = QPushButton("✓ Teslim Edildi")
         deliver_btn.setObjectName("SuccessButton")
         deliver_btn.setShortcut(QKeySequence("Ctrl+D"))
-        deliver_btn.setToolTip("Seçili siparişi 'Teslim Edildi' yap (Ctrl+D)")
+        deliver_btn.setToolTip("Seçili sipariş(ler)i 'Teslim Edildi' yap (Ctrl+D)")
         deliver_btn.clicked.connect(self._mark_delivered)
 
         self.auto_refresh_check = QCheckBox("Listeyi otomatik güncelle")
@@ -261,6 +261,9 @@ class OrdersPanel(QWidget):
         )
         self.orders_table.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows
+        )
+        self.orders_table.setSelectionMode(
+            QTableWidget.SelectionMode.ExtendedSelection
         )
         self.orders_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.orders_table.setAlternatingRowColors(True)
@@ -749,6 +752,7 @@ class OrdersPanel(QWidget):
     # Seçim ve detay tablosu
     # ==================================================================
     def _selected_order(self) -> dict[str, Any] | None:
+        """En son seçili (current) tek sipariş."""
         row = self.orders_table.currentRow()
         if row < 0:
             return None
@@ -758,13 +762,28 @@ class OrdersPanel(QWidget):
         order_id = item.data(Qt.ItemDataRole.UserRole)
         return next((o for o in self._current_orders if o.get("id") == order_id), None)
 
+    def _selected_orders(self) -> list[dict[str, Any]]:
+        """Tüm seçili siparişleri döndür."""
+        rows = sorted({idx.row() for idx in self.orders_table.selectedIndexes()})
+        result: list[dict[str, Any]] = []
+        for row in rows:
+            item = self.orders_table.item(row, self.COL_NUMBER)
+            if not item:
+                continue
+            oid = item.data(Qt.ItemDataRole.UserRole)
+            order = next((o for o in self._current_orders if o.get("id") == oid), None)
+            if order:
+                result.append(order)
+        return result
+
     def _on_order_selected(self) -> None:
-        order = self._selected_order()
-        if not order:
+        orders = self._selected_orders()
+        if not orders:
             self.items_table.setRowCount(0)
             self.order_notes_label.setText("Sipariş Açıklaması: -")
             return
-        self._populate_items_table(order)
+        # Çoklu seçimde ilk seçiliyi göster
+        self._populate_items_table(orders[0])
 
     def _populate_items_table(self, order: dict[str, Any]) -> None:
         try:
@@ -840,32 +859,43 @@ class OrdersPanel(QWidget):
         self.print_order_requested.emit(order["id"])
 
     def _delete_selected(self) -> None:
-        order = self._selected_order()
-        if not order:
+        orders = self._selected_orders()
+        if not orders:
             return
-        confirm = QMessageBox.question(
-            self,
-            "Sil",
-            f"#{order.get('order_number')} numaralı sipariş silinecek. "
-            "Onaylıyor musun?",
-        )
+        count = len(orders)
+        if count == 1:
+            text = (
+                f"#{orders[0].get('order_number')} numaralı sipariş "
+                "silinecek. Onaylıyor musun?"
+            )
+        else:
+            text = f"{count} adet sipariş toplu olarak silinecek. Onaylıyor musun?"
+        confirm = QMessageBox.question(self, "Sil", text)
         if confirm != QMessageBox.StandardButton.Yes:
             return
-        try:
-            orders_db.delete_order(order["id"])
-            self.refresh()
-        except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "Hata", str(exc))
+        errors: list[str] = []
+        for order in orders:
+            try:
+                orders_db.delete_order(order["id"])
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"#{order.get('order_number')}: {exc}")
+        self.refresh()
+        if errors:
+            QMessageBox.critical(self, "Silme Hatası", "\n".join(errors))
 
     def _mark_delivered(self) -> None:
-        order = self._selected_order()
-        if not order:
+        orders = self._selected_orders()
+        if not orders:
             return
-        try:
-            orders_db.mark_delivered(order["id"])
-            self.refresh()
-        except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "Hata", str(exc))
+        errors: list[str] = []
+        for order in orders:
+            try:
+                orders_db.mark_delivered(order["id"])
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"#{order.get('order_number')}: {exc}")
+        self.refresh()
+        if errors:
+            QMessageBox.critical(self, "Hata", "\n".join(errors))
 
     def _assign_courier(self, order_id: str, courier_id: str | None) -> None:
         try:
