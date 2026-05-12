@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- DataStore (Supabase URL/key, kurye bilgisi) yedeklensin -->
+    <include domain="file" path="datastore/" />
+    <!-- Room veritabanı yedeklenmesin (önbellek) -->
+    <exclude domain="database" path="courier_tracker.db" />
+</full-backup-content>

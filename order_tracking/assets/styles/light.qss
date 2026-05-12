@@ -1,0 +1,185 @@
+/* ============================================================
+   Açık Tema (Light)
+   ============================================================ */
+
+QMainWindow, QWidget {
+    background-color: #F5F7FA;
+    color: #212121;
+    font-family: "Segoe UI", "Inter", "Arial";
+    font-size: 13px;
+}
+
+/* Header bar */
+#HeaderBar {
+    background-color: #1976D2;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+}
+#HeaderTitle {
+    color: white;
+    font-size: 20px;
+    font-weight: bold;
+    background: transparent;
+    border: none;
+}
+#HeaderInfo {
+    color: #FFFFFF;
+    font-size: 14px;
+    font-weight: 600;
+    background: transparent;
+    border: none;
+}
+
+/* Tab widget */
+QTabWidget::pane {
+    border: none;
+    background: #F5F7FA;
+}
+QTabBar::tab {
+    background: #E0E0E0;
+    color: #424242;
+    padding: 8px 14px;
+    margin-right: 2px;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+    font-weight: 500;
+    font-size: 12px;
+    min-width: 60px;
+}
+QTabBar::tab:selected {
+    background: #1976D2;
+    color: white;
+}
+QTabBar::tab:hover:!selected {
+    background: #BDBDBD;
+}
+
+/* Buttons */
+QPushButton {
+    background-color: #1976D2;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 500;
+}
+QPushButton:hover { background-color: #1565C0; }
+QPushButton:pressed { background-color: #0D47A1; }
+QPushButton:disabled { background-color: #BDBDBD; color: #757575; }
+
+QPushButton#SecondaryButton {
+    background-color: #FFFFFF;
+    color: #1976D2;
+    border: 1px solid #1976D2;
+}
+QPushButton#SecondaryButton:hover { background-color: #E3F2FD; }
+
+QPushButton#DangerButton { background-color: #D32F2F; }
+QPushButton#DangerButton:hover { background-color: #B71C1C; }
+
+QPushButton#SuccessButton { background-color: #388E3C; }
+QPushButton#SuccessButton:hover { background-color: #2E7D32; }
+
+/* Inputs */
+QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTimeEdit, QTextEdit {
+    background-color: white;
+    border: 1px solid #BDBDBD;
+    border-radius: 6px;
+    padding: 6px 10px;
+    selection-background-color: #1976D2;
+}
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus,
+QDoubleSpinBox:focus, QDateEdit:focus, QTimeEdit:focus, QTextEdit:focus {
+    border: 1.5px solid #1976D2;
+}
+
+/* Tables */
+QTableWidget, QTableView {
+    background-color: white;
+    alternate-background-color: #F5F7FA;
+    border: 1px solid #E0E0E0;
+    border-radius: 6px;
+    gridline-color: #EEEEEE;
+}
+QHeaderView::section {
+    background-color: #ECEFF1;
+    color: #37474F;
+    padding: 8px;
+    border: none;
+    border-bottom: 1px solid #CFD8DC;
+    font-weight: 600;
+}
+
+/* Order cards */
+QFrame#OrderCard {
+    background-color: white;
+    border: 1px solid #E0E0E0;
+    border-radius: 8px;
+    padding: 8px;
+}
+QFrame#OrderCard:hover {
+    border: 1px solid #1976D2;
+    background-color: #F5FAFF;
+}
+QLabel#OrderNumber  { color: #1976D2; font-size: 14px; font-weight: bold; }
+QLabel#OrderAmount  { color: #2E7D32; font-size: 13px; font-weight: bold; }
+QLabel#OrderTime    { color: #757575; font-size: 11px; }
+QLabel#OrderCustomer{ color: #212121; font-size: 13px; }
+
+/* Kanban columns */
+QFrame#KanbanColumn {
+    background-color: #ECEFF1;
+    border-radius: 8px;
+    padding: 8px;
+}
+QLabel#KanbanTitle {
+    color: #37474F;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 4px 0;
+}
+
+/* Incoming call popup */
+QWidget#IncomingCallPopup {
+    background-color: white;
+    border: 2px solid #1976D2;
+    border-radius: 12px;
+}
+QLabel#CallTitle      { font-size: 14px; font-weight: bold; color: #1976D2; }
+QLabel#CallNumber     { font-size: 22px; font-weight: bold; color: #212121; }
+QLabel#CallMatchYes   { font-size: 14px; color: #2E7D32; font-weight: bold; }
+QLabel#CallMatchNo    { font-size: 14px; color: #C62828; font-weight: bold; }
+
+/* Status pills */
+QLabel.StatusPill {
+    border-radius: 10px;
+    padding: 2px 8px;
+    color: white;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+QLabel#SummaryBox {
+    background-color: #FFFFFF;
+    color: #212121;
+    border: 1px solid #BDBDBD;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-weight: bold;
+}
+
+QLabel#SettingsInfo {
+    color: #424242;
+    font-size: 13px;
+}
+
+QLabel#OrderNotes {
+    color: #212121;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 6px 8px;
+    background-color: #FFFFFF;
+    border: 1px solid #BDBDBD;
+    border-radius: 4px;
+}

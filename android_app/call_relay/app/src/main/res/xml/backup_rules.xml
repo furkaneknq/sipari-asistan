@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- DataStore (Supabase URL/anon key vs.) yedeklensin -->
+    <include domain="file" path="datastore/" />
+    <!-- Room veritabanı yedeklenmesin (cihaza özel arama logları) -->
+    <exclude domain="database" path="call_relay.db" />
+</full-backup-content>

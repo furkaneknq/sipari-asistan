@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Arama Aktarım</string>
+    <string name="setup_title">Kurulum</string>
+
+    <!-- Foreground servis bildirimi -->
+    <string name="channel_name">Arama İzleyici</string>
+    <string name="channel_desc">Gelen aramaları yakalayıp Supabase\'e gönderir.</string>
+    <string name="notif_title_active">📞 Arama Aktarım — Aktif</string>
+    <string name="notif_text_active">Aramalar izleniyor</string>
+</resources>

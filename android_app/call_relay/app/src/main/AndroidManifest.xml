@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Telefon durumunu okuyabilmek için (gelen aramayı algılama) -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <!-- Numara erişimi (özellikle Android 9+) -->
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <!-- Android 12+ için telefon numarasına erişim -->
+    <uses-permission android:name="android.permission.READ_PHONE_NUMBERS" />
+    <!-- ProcessOutgoingCalls deprecated; gelen arama için process izni gerek yok -->
+    <uses-permission android:name="android.permission.PROCESS_OUTGOING_CALLS"
+        tools:node="remove" />
+    <!-- Foreground service çalıştırabilmek için.
+         Bizim use-case'imiz: gelen aramayı algılayıp Supabase'e veri yollamak.
+         Bu yüzden 'dataSync' tipi doğru (phoneCall değil!). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- İnternet bağlantısı (Supabase REST) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Cihaz açıldığında servisi başlat -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Android 13+ için bildirim izni -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Bildirim çubuğunda foreground service göstermek için -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- Telefonu olmayan tabletleri filtrele (Play Store) -->
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false" />
+
+    <application
+        android:name=".CallRelayApp"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.CallRelay"
+        tools:targetApi="34">
+
+        <!-- Açılış ekranı (kurulum tamamlanmadıysa Setup'a yönlendirir) -->
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.CallRelay">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- İlk kurulum ekranı -->
+        <activity
+            android:name=".ui.SetupActivity"
+            android:exported="false"
+            android:label="@string/setup_title"
+            android:theme="@style/Theme.CallRelay" />
+
+        <!-- Foreground servis: gelen aramayı izler ve Supabase'e gönderir.
+             Tip = dataSync çünkü bizim asıl işimiz internet üzerinden veri sync etmek. -->
+        <service
+            android:name=".service.CallMonitorService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Cihaz açıldığında servisi otomatik başlat -->
+        <receiver
+            android:name=".receiver.BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Manifest tabanlı arama dinleyicisi.
+             android.intent.action.PHONE_STATE Android 8+ implicit broadcast
+             kısıtlamasından muaftır → manifest receiver hâlâ tetiklenir.
+             Bu, servis öldürülmüş olsa bile aramayı yakalama garantisi sağlar. -->
+        <receiver
+            android:name=".receiver.PhoneStateReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter android:priority="1000">
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+
+</manifest>

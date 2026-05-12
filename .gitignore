@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Gizli yapılandırma — ASLA commit'lenmez
+**/.env
+
+# IDE / Editör
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+.directory
+
+# Build çıktıları
+build/
+dist/
+*.spec
+installer/windows/Output/
+installer/windows/build/
+installer/windows/dist/
+installer/windows/.venv/
+
+# Android build
+android_app/**/build/
+android_app/**/.gradle/
+android_app/**/local.properties
+android_app/**/captures/
+
+# Üretilen ZIP (kaynak değil)
+Proje-Windows.zip
+
+# Log
+*.log

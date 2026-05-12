@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Kurye Takip</string>
+    <string name="login_title">Giriş</string>
+
+    <!-- Foreground servis bildirimi -->
+    <string name="channel_orders">Sipariş Bildirimleri</string>
+    <string name="channel_orders_desc">Yeni sipariş atandığında bildirim gönderir.</string>
+    <string name="channel_service">Servis</string>
+    <string name="channel_service_desc">Sipariş polling servisi çalışıyor.</string>
+    <string name="notif_title_active">🏍️ Kurye Takip — Aktif</string>
+    <string name="notif_text_active">Siparişler izleniyor</string>
+    <string name="notif_new_order_title">📦 Yeni Sipariş!</string>
+    <string name="notif_order_updated_title">🔄 Sipariş Güncellendi</string>
+</resources>
