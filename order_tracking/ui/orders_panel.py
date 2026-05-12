@@ -911,17 +911,32 @@ class OrdersPanel(QWidget):
 
                 new_status = STATUS_ON_WAY if courier_id else STATUS_NEW
                 orders_db.update_order_status(order_id, new_status)
-            self.refresh()
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "Hata", str(exc))
+
+    def _assign_couriers_bulk(self, courier_id: str | None) -> None:
+        """Tüm seçili siparişlere aynı kuryeyi ata (veya kaldır)."""
+        orders = self._selected_orders()
+        if not orders:
+            return
+        errors: list[str] = []
+        for order in orders:
+            try:
+                self._assign_courier(order["id"], courier_id)
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"#{order.get('order_number')}: {exc}")
+        self.refresh()
+        if errors:
+            QMessageBox.critical(self, "Kurye Atama Hatası", "\n".join(errors))
 
     # ==================================================================
     # Sağ tık menüsü
     # ==================================================================
     def _show_context_menu(self, pos) -> None:
-        order = self._selected_order()
-        if not order:
+        orders = self._selected_orders()
+        if not orders:
             return
+        order = orders[0]  # menü aksiyonları için ilk seçili referans
 
         menu = QMenu(self)
 
@@ -942,7 +957,7 @@ class OrdersPanel(QWidget):
         print_act.triggered.connect(self._print_selected)
         menu.addAction(print_act)
 
-        # Kurye alt menüsü
+        # Kurye alt menüsü (çoklu seçimde tümüne atanır)
         courier_menu = QMenu("🏍 Kuryeye Ata", self)
         try:
             couriers = couriers_db.list_couriers(only_active=True)
@@ -950,9 +965,7 @@ class OrdersPanel(QWidget):
             couriers = []
 
         none_act = QAction("(Atamayı Kaldır)", self)
-        none_act.triggered.connect(
-            lambda: self._assign_courier(order["id"], None)
-        )
+        none_act.triggered.connect(lambda: self._assign_couriers_bulk(None))
         courier_menu.addAction(none_act)
         courier_menu.addSeparator()
         for cr in couriers:
@@ -962,22 +975,19 @@ class OrdersPanel(QWidget):
                 label = f"• {label}"
             act = QAction(label, self)
             act.triggered.connect(
-                lambda _checked=False, cid=cr_id: self._assign_courier(
-                    order["id"], cid
-                )
+                lambda _checked=False, cid=cr_id: self._assign_couriers_bulk(cid)
             )
             courier_menu.addAction(act)
         menu.addMenu(courier_menu)
 
+        # Teslim et / geri al (tüm seçili siparişlere)
         if order.get("status") != STATUS_DELIVERED:
             deliver_act = QAction("✓ Teslim Edildi olarak işaretle", self)
             deliver_act.triggered.connect(self._mark_delivered)
             menu.addAction(deliver_act)
         else:
             undeliver_act = QAction("↶ Geri Al (Yeni)", self)
-            undeliver_act.triggered.connect(
-                lambda: self._set_status(order["id"], STATUS_NEW)
-            )
+            undeliver_act.triggered.connect(self._mark_undelivered)
             menu.addAction(undeliver_act)
 
         menu.addSeparator()
@@ -986,6 +996,21 @@ class OrdersPanel(QWidget):
         menu.addAction(delete_act)
 
         menu.exec(self.orders_table.viewport().mapToGlobal(pos))
+
+    def _mark_undelivered(self) -> None:
+        """Seçili sipariş(ler)i 'Yeni' olarak işaretle."""
+        orders = self._selected_orders()
+        if not orders:
+            return
+        errors: list[str] = []
+        for order in orders:
+            try:
+                orders_db.update_order_status(order["id"], STATUS_NEW)
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"#{order.get('order_number')}: {exc}")
+        self.refresh()
+        if errors:
+            QMessageBox.critical(self, "Hata", "\n".join(errors))
 
     def _set_status(self, order_id: str, status: str) -> None:
         try:

@@ -167,36 +167,51 @@ def print_receipt(
     order: dict[str, Any],
     items: list[dict[str, Any]],
     settings: dict[str, str],
+    printer_type: str | None = None,
+    printer_options: dict[str, Any] | None = None,
 ) -> tuple[bool, str]:
-    """Adisyonu yazıcıya gönderir. (success, message) döner."""
+    """Adisyonu yazıcıya gönderir. (success, message) döner.
+
+    printer_type  : 'dummy' | 'usb' | 'network' | 'serial'
+    printer_options:
+        usb:  {'vendor_id': '0x1234', 'product_id': '0x5678'}
+        network: {'host': '192.168.1.100', 'port': 9100}
+        serial:  {'devfile': '/dev/ttyUSB0', 'baudrate': 9600}
+    """
+    ptype = (printer_type or config.PRINTER_TYPE or "dummy").lower()
+    opts = printer_options or {}
 
     width = 48 if config.PRINTER_PAPER_WIDTH == 80 else 32
     text = build_receipt_text(order, items, settings, width=width)
 
-    printer_type = (config.PRINTER_TYPE or "dummy").lower()
-
-    if printer_type == "dummy":
+    if ptype == "dummy":
         return True, "Yazıcı yapılandırılmadı (dummy mod). Sadece önizleme."
 
     try:
-        if printer_type == "usb":
+        if ptype == "usb":
             from escpos.printer import Usb
 
-            vendor = int(config.PRINTER_USB_VENDOR_ID, 16)
-            product = int(config.PRINTER_USB_PRODUCT_ID, 16)
+            vendor = int(
+                opts.get("vendor_id") or config.PRINTER_USB_VENDOR_ID or "0x04b8", 16
+            )
+            product = int(
+                opts.get("product_id") or config.PRINTER_USB_PRODUCT_ID or "0x0202", 16
+            )
             printer = Usb(vendor, product)
-        elif printer_type == "network":
+        elif ptype == "network":
             from escpos.printer import Network
 
-            printer = Network(
-                config.PRINTER_NETWORK_HOST, port=config.PRINTER_NETWORK_PORT
-            )
-        elif printer_type == "serial":
+            host = opts.get("host") or config.PRINTER_NETWORK_HOST or "192.168.1.100"
+            port = int(opts.get("port") or config.PRINTER_NETWORK_PORT or 9100)
+            printer = Network(host, port=port)
+        elif ptype == "serial":
             from escpos.printer import Serial
 
-            printer = Serial(devfile="/dev/ttyUSB0", baudrate=9600)
+            dev = opts.get("devfile") or "/dev/ttyUSB0"
+            baud = int(opts.get("baudrate") or 9600)
+            printer = Serial(devfile=dev, baudrate=baud)
         else:
-            return False, f"Bilinmeyen yazıcı tipi: {printer_type}"
+            return False, f"Bilinmeyen yazıcı tipi: {ptype}"
 
         printer.set(align="left", font="a", width=1, height=1)
         printer.text(text + "\n\n\n")
