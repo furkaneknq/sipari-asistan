@@ -76,6 +76,8 @@ class OrdersPanel(QWidget):
     create_order_requested = pyqtSignal(object)
     open_order_requested = pyqtSignal(str)
     print_order_requested = pyqtSignal(str)
+    print_bulk_customer_requested = pyqtSignal(list)
+    print_preparation_requested = pyqtSignal(list)
     open_customer_requested = pyqtSignal(str)
 
     # Sütun indexleri
@@ -179,10 +181,15 @@ class OrdersPanel(QWidget):
         delete_btn.setToolTip("Seçili sipariş(ler)i sil (Del)")
         delete_btn.clicked.connect(self._delete_selected)
 
-        print_btn = QPushButton("🖨 Sipariş Yazdır")
+        print_btn = QPushButton("🖨 Müşteri Fişi")
         print_btn.setShortcut(QKeySequence("Ctrl+P"))
-        print_btn.setToolTip("Adisyon yazdır (Ctrl+P)")
-        print_btn.clicked.connect(self._print_selected)
+        print_btn.setToolTip("Seçili sipariş(ler)in müşteri fişini yazdır (Ctrl+P)")
+        print_btn.clicked.connect(self._print_customer_receipt)
+
+        prep_btn = QPushButton("📋 Hazırlama Fişi")
+        prep_btn.setShortcut(QKeySequence("Ctrl+H"))
+        prep_btn.setToolTip("Seçili sipariş(ler)in hazırlama fişini yazdır (Ctrl+H)")
+        prep_btn.clicked.connect(self._print_preparation_receipt)
 
         deliver_btn = QPushButton("✓ Teslim Edildi")
         deliver_btn.setObjectName("SuccessButton")
@@ -200,6 +207,7 @@ class OrdersPanel(QWidget):
         a_layout.addWidget(edit_btn)
         a_layout.addWidget(deliver_btn)
         a_layout.addWidget(print_btn)
+        a_layout.addWidget(prep_btn)
         a_layout.addWidget(delete_btn)
         a_layout.addSpacing(10)
         a_layout.addWidget(self.auto_refresh_check)
@@ -950,6 +958,24 @@ class OrdersPanel(QWidget):
             return
         self.print_order_requested.emit(order["id"])
 
+    def _print_customer_receipt(self) -> None:
+        """Seçili sipariş(ler)in müşteri fişini yazdır."""
+        orders = self._selected_orders()
+        if not orders:
+            QMessageBox.information(self, "Seçim", "Önce sipariş seçin.")
+            return
+        order_ids = [o["id"] for o in orders]
+        self.print_bulk_customer_requested.emit(order_ids)
+
+    def _print_preparation_receipt(self) -> None:
+        """Seçili sipariş(ler)in hazırlama fişini yazdır."""
+        orders = self._selected_orders()
+        if not orders:
+            QMessageBox.information(self, "Seçim", "Önce sipariş seçin.")
+            return
+        order_ids = [o["id"] for o in orders]
+        self.print_preparation_requested.emit(order_ids)
+
     def _delete_selected(self) -> None:
         orders = self._selected_orders()
         if not orders:
@@ -1045,9 +1071,13 @@ class OrdersPanel(QWidget):
             )
             menu.addAction(cust_act)
 
-        print_act = QAction("🖨 Yazdır", self)
-        print_act.triggered.connect(self._print_selected)
+        print_act = QAction("🖨 Müşteri Fişi", self)
+        print_act.triggered.connect(self._print_customer_receipt)
         menu.addAction(print_act)
+
+        prep_act = QAction("📋 Hazırlama Fişi", self)
+        prep_act.triggered.connect(self._print_preparation_receipt)
+        menu.addAction(prep_act)
 
         # Kurye alt menüsü (çoklu seçimde tümüne atanır)
         courier_menu = QMenu("🏍 Kuryeye Ata", self)

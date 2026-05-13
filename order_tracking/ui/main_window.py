@@ -99,6 +99,8 @@ class MainWindow(QMainWindow):
         self.orders_panel.create_order_requested.connect(self._open_new_order)
         self.orders_panel.open_order_requested.connect(self._open_order)
         self.orders_panel.print_order_requested.connect(self._print_order)
+        self.orders_panel.print_bulk_customer_requested.connect(self._print_bulk_customer)
+        self.orders_panel.print_preparation_requested.connect(self._print_preparation)
         self.orders_panel.open_customer_requested.connect(self._open_customer_detail)
 
         self.calls_panel.create_order_requested.connect(self._open_new_order_for_customer)
@@ -392,6 +394,15 @@ class MainWindow(QMainWindow):
                 # Yeni müşteri oluşturuldu → hemen sipariş aç
                 self._open_new_order(cust["id"])
 
+    def _get_settings(self) -> dict[str, str]:
+        """Settings tablosundan işletme bilgilerini çeker."""
+        try:
+            res = get_client().table("settings").select("*").execute()
+            rows = res.data or []
+        except Exception:  # noqa: BLE001
+            rows = []
+        return {r["key"]: r.get("value") or "" for r in rows}
+
     def _print_order(self, order_id: str) -> None:
         try:
             order = orders_db.get_order(order_id)
@@ -402,16 +413,152 @@ class MainWindow(QMainWindow):
         if not order:
             return
 
-        # Settings tablosundan işletme bilgilerini çek
-        try:
-            res = get_client().table("settings").select("*").execute()
-            rows = res.data or []
-        except Exception:  # noqa: BLE001
-            rows = []
-        settings = {r["key"]: r.get("value") or "" for r in rows}
-
+        settings = self._get_settings()
         dlg = ReceiptPreviewDialog(order, items, settings, self)
         dlg.exec()
+
+    def _print_bulk_customer(self, order_ids: list[str]) -> None:
+        """Seçili siparişlerin müşteri fişlerini önizle ve yazdır (her biri arasında kesim)."""
+        from utils.printer_handler import (
+            build_customer_receipt_text,
+            show_receipt_preview,
+            print_customer_receipt,
+            _get_printer,
+        )
+        from utils.helpers import format_phone
+
+        settings = self._get_settings()
+        all_data: list[dict] = []
+        preview_parts: list[str] = []
+
+        for oid in order_ids:
+            try:
+                order = orders_db.get_order(oid)
+                items = orders_db.list_order_items(oid)
+            except Exception:  # noqa: BLE001
+                continue
+            if not order:
+                continue
+
+            from datetime import datetime
+            customer = order.get("customers") or {}
+            address = order.get("customer_addresses") or {}
+            courier = order.get("couriers") or {}
+            created_at = order.get("created_at") or datetime.now().isoformat()
+            try:
+                dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                date_str = dt.strftime("%d/%m/%Y")
+                time_str = dt.strftime("%H:%M")
+            except Exception:  # noqa: BLE001
+                date_str = str(created_at)
+                time_str = ""
+
+            data = {
+                "business_name": settings.get("company_name", "İşletme"),
+                "business_address": settings.get("company_address", ""),
+                "business_phone": settings.get("company_phone", ""),
+                "order_number": order.get("order_number", ""),
+                "date": date_str,
+                "time": time_str,
+                "customer_name": customer.get("name", ""),
+                "customer_phone": customer.get("phone", ""),
+                "customer_address": (
+                    address.get("address_text") or order.get("address_text", "")
+                ),
+                "items": [
+                    {
+                        "name": (i.get("products") or {}).get("name") or i.get("name", ""),
+                        "qty": i.get("quantity", 0),
+                        "unit": i.get("unit") or (i.get("products") or {}).get("unit", "adet"),
+                        "total": i.get("total_price", 0),
+                    }
+                    for i in items
+                ],
+                "total": order.get("total_amount", 0),
+                "payment_method": {
+                    "cash": "Nakit", "credit_card": "Kredi Kartı", "iban": "IBAN"
+                }.get(order.get("payment_method") or "", "-"),
+                "payment_amount": order.get("total_amount", 0),
+                "courier_name": courier.get("name", ""),
+                "note": order.get("notes", ""),
+            }
+            all_data.append(data)
+            preview_parts.append(build_customer_receipt_text(data))
+
+        if not all_data:
+            QMessageBox.warning(self, "Uyarı", "Yazdırılacak sipariş bulunamadı.")
+            return
+
+        combined = ("\n\n--- KESİM ---\n\n").join(preview_parts)
+        if not show_receipt_preview(self, combined, f"Müşteri Fişi ({len(all_data)} adet)"):
+            return
+
+        printer = _get_printer()
+        if printer is None:
+            QMessageBox.information(self, "Yazıcı", "Yazıcı yapılandırılmadı (dummy mod).")
+            return
+
+        try:
+            for i, data in enumerate(all_data):
+                text = build_customer_receipt_text(data)
+                printer.set(align="left", font="a", bold=False, width=1, height=1)
+                for line in text.split("\n"):
+                    if line.startswith("TOPLAM:"):
+                        printer.set(bold=True, width=2, height=2)
+                        printer.text(line + "\n")
+                        printer.set(bold=False, width=1, height=1)
+                    else:
+                        printer.text(line + "\n")
+                printer.cut()
+            printer.close()
+            QMessageBox.information(
+                self, "Yazıcı", f"{len(all_data)} müşteri fişi yazdırıldı."
+            )
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "Yazıcı Hatası", str(exc))
+
+    def _print_preparation(self, order_ids: list[str]) -> None:
+        """Seçili siparişlerin hazırlama fişini önizle ve yazdır."""
+        from utils.printer_handler import (
+            build_preparation_receipt_text,
+            print_preparation_receipt,
+            show_receipt_preview,
+        )
+
+        selected_orders: list[dict] = []
+        for oid in order_ids:
+            try:
+                order = orders_db.get_order(oid)
+                items = orders_db.list_order_items(oid)
+            except Exception:  # noqa: BLE001
+                continue
+            if not order:
+                continue
+            selected_orders.append({
+                "order_number": order.get("order_number", "?"),
+                "items": [
+                    {
+                        "name": (i.get("products") or {}).get("name") or i.get("name", ""),
+                        "quantity": i.get("quantity", 0),
+                        "unit": i.get("unit") or (i.get("products") or {}).get("unit", "adet"),
+                    }
+                    for i in items
+                ],
+            })
+
+        if not selected_orders:
+            QMessageBox.warning(self, "Uyarı", "Yazdırılacak sipariş bulunamadı.")
+            return
+
+        text = build_preparation_receipt_text(selected_orders)
+        if not show_receipt_preview(self, text, f"Hazırlama Fişi ({len(selected_orders)} sipariş)"):
+            return
+
+        ok, msg = print_preparation_receipt(selected_orders)
+        if ok:
+            QMessageBox.information(self, "Yazıcı", msg)
+        else:
+            QMessageBox.warning(self, "Yazıcı", msg)
 
     # ==================================================================
     # Tema

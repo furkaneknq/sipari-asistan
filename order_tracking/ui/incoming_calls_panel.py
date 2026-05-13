@@ -158,9 +158,8 @@ class IncomingCallsPanel(QWidget):
                 cust_item.setForeground(Qt.GlobalColor.darkGray)
             self.table.setItem(row, 2, cust_item)
 
-            # Cihaz adı: phones tablosundan device_name göster
-            device_name = (call.get("phones") or {}).get("device_name") or ""
-            device_display = device_name or call.get("device_id") or "-"
+            # Cihaz adı: phones tablosundan device_name göster (ham ID'yi gizle)
+            device_display = (call.get("phones") or {}).get("device_name") or "-"
             self.table.setItem(row, 3, QTableWidgetItem(device_display))
             is_unanswered = call.get("is_unanswered", False)
             if is_unanswered:

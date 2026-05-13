@@ -94,6 +94,8 @@ class SetupViewModel(
                 DeviceIdProvider.obtain(CallRelayApp.get())
             } else existingId
             prefs.saveConnection(s.url, s.apiKey, s.deviceName, deviceId)
+            // Cihaz bilgisini phones tablosuna kaydet (masaüstünde cihaz adı görünsün)
+            repo.registerDevice(s.url, s.apiKey, deviceId, s.deviceName)
             _uiState.update { it.copy(saving = false) }
             onDone()
         }

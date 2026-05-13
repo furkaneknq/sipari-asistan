@@ -98,4 +98,7 @@ dependencies {
 
     // DataStore (Supabase URL/key için ayar saklama)
     implementation(libs.androidx.datastore.preferences)
+
+    // Test
+    testImplementation("junit:junit:4.13.2")
 }

@@ -30,6 +30,15 @@ interface SupabaseApi {
         @Body call: IncomingCallDto
     )
 
+    /** Cihaz bilgisini phones tablosuna upsert eder (device_id UNIQUE). */
+    @POST("rest/v1/phones")
+    suspend fun upsertPhone(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Prefer") prefer: String = "resolution=merge-duplicates",
+        @Body phone: PhoneDto
+    )
+
     /** Bağlantı testi: settings tablosundan tek satır okumayı dener (HEAD/GET). */
     @GET("rest/v1/{table}")
     suspend fun ping(
@@ -46,4 +55,12 @@ data class IncomingCallDto(
     val phone_number: String,
     val device_id: String,
     val created_at: String
+)
+
+/** phones tablosuna upsert edilecek cihaz bilgisi. */
+@Serializable
+data class PhoneDto(
+    val device_id: String,
+    val device_name: String,
+    val is_active: Boolean = true
 )

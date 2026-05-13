@@ -4,6 +4,7 @@ import android.util.Log
 import com.orderapp.callrelay.data.Prefs
 import com.orderapp.callrelay.data.api.ApiClient
 import com.orderapp.callrelay.data.api.IncomingCallDto
+import com.orderapp.callrelay.data.api.PhoneDto
 import com.orderapp.callrelay.data.db.CallDao
 import com.orderapp.callrelay.data.db.CallEntity
 import kotlinx.coroutines.flow.Flow
@@ -135,6 +136,22 @@ class CallRepository(
         ApiClient.api(url).ping(
             apiKey = key,
             auth = "Bearer $key"
+        )
+    }
+
+    /**
+     * Cihaz bilgisini phones tablosuna kaydeder (upsert).
+     * Ayarlar kaydedilirken çağrılır — böylece masaüstü uygulaması
+     * gelen aramada cihaz adını gösterebilir.
+     */
+    suspend fun registerDevice(url: String, key: String, deviceId: String, deviceName: String): Result<Unit> = runCatching {
+        ApiClient.api(url).upsertPhone(
+            apiKey = key,
+            auth = "Bearer $key",
+            phone = PhoneDto(
+                device_id = deviceId,
+                device_name = deviceName
+            )
         )
     }
 

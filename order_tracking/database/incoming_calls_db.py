@@ -50,7 +50,7 @@ def list_calls(
 
 
 def _enrich_device_names(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """device_id → phones.device_name eşleştirmesi yapar."""
+    """device_id → phones.device_name basit eşleştirme."""
     if not rows:
         return rows
     device_ids = {r.get("device_id") for r in rows if r.get("device_id")}
@@ -65,8 +65,9 @@ def _enrich_device_names(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             .execute()
         )
         name_map = {
-            p.get("device_id"): p.get("device_name") or ""
+            p["device_id"]: p.get("device_name") or ""
             for p in (res.data or [])
+            if p.get("device_id")
         }
     except Exception:  # noqa: BLE001
         name_map = {}
@@ -131,18 +132,15 @@ def enrich_calls_with_customer(
     except Exception:  # noqa: BLE001
         cust_rows = []
 
-    # norm → en uygun müşteri (gerçek müşteri tercihli)
+    # norm → en uygun müşteri (yalnızca gerçek müşteriler)
     by_norm_cust: dict[str, dict[str, Any]] = {}
     for c in cust_rows:
+        if c.get("is_guest"):
+            continue  # misafir kayıtlarını atla
         cnorm = normalize_phone(c.get("phone") or "")
         if not cnorm:
             continue
-        existing = by_norm_cust.get(cnorm)
-        if existing is None:
-            by_norm_cust[cnorm] = c
-            continue
-        # Mevcut misafir, yenisi gerçek müşteri → değiştir
-        if existing.get("is_guest") and not c.get("is_guest"):
+        if cnorm not in by_norm_cust:
             by_norm_cust[cnorm] = c
 
     # Eşleşmeyenler için boşluk/tire içeren olası kayıtları ilike ile yokla.
@@ -158,11 +156,10 @@ def enrich_calls_with_customer(
                     .execute()
                 )
                 for c in (res.data or []):
+                    if c.get("is_guest"):
+                        continue  # misafir kayıtlarını atla
                     if normalize_phone(c.get("phone") or "") == norm:
-                        existing = by_norm_cust.get(norm)
-                        if existing is None or (
-                            existing.get("is_guest") and not c.get("is_guest")
-                        ):
+                        if norm not in by_norm_cust:
                             by_norm_cust[norm] = c
         except Exception:  # noqa: BLE001
             pass
