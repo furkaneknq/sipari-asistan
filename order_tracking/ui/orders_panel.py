@@ -73,7 +73,6 @@ class OrdersPanel(QWidget):
     print_bulk_customer_requested = pyqtSignal(list)
     print_preparation_requested = pyqtSignal(list)
     open_customer_requested = pyqtSignal(str)
-    last_caller_order_requested = pyqtSignal()
     show_last_call_popup_requested = pyqtSignal()
 
     # Sütun indexleri
@@ -188,10 +187,6 @@ class OrdersPanel(QWidget):
         self.auto_refresh_check.setChecked(True)
         self.auto_refresh_check.toggled.connect(self._toggle_auto_refresh)
 
-        last_caller_btn = QPushButton("📞 Son Arayana Sipariş")
-        last_caller_btn.setToolTip("Son gelen aramanın müşterisine yeni sipariş oluştur")
-        last_caller_btn.clicked.connect(self.last_caller_order_requested.emit)
-
         show_popup_btn = QPushButton("📲 Son Çağrıyı Göster")
         show_popup_btn.setToolTip("Son gelen arama popup'ını tekrar aç")
         show_popup_btn.clicked.connect(self.show_last_call_popup_requested.emit)
@@ -199,7 +194,6 @@ class OrdersPanel(QWidget):
         actions_box = QGroupBox("⚙ İşlemler")
         a_layout = QVBoxLayout()
         a_layout.addWidget(new_btn)
-        a_layout.addWidget(last_caller_btn)
         a_layout.addWidget(show_popup_btn)
         a_layout.addWidget(edit_btn)
         a_layout.addWidget(deliver_btn)

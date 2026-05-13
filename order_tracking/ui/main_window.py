@@ -103,7 +103,6 @@ class MainWindow(QMainWindow):
         self.orders_panel.print_bulk_customer_requested.connect(self._print_bulk_customer)
         self.orders_panel.print_preparation_requested.connect(self._print_preparation)
         self.orders_panel.open_customer_requested.connect(self._open_customer_detail)
-        self.orders_panel.last_caller_order_requested.connect(self._order_for_last_caller)
         self.orders_panel.show_last_call_popup_requested.connect(self._show_last_call_popup)
 
         self.calls_panel.create_order_requested.connect(self._open_new_order_for_customer)
@@ -356,18 +355,6 @@ class MainWindow(QMainWindow):
             self.orders_panel.refresh()
             if dlg.print_after_save and dlg.saved_order_id:
                 self._print_order(dlg.saved_order_id)
-
-    def _order_for_last_caller(self) -> None:
-        """Son gelen aramanın müşterisine sipariş aç."""
-        if not self._last_call_data:
-            QMessageBox.information(self, "Bilgi", "Henüz gelen arama yok.")
-            return
-        customer_id = self._last_call_data.get("customer_id")
-        if customer_id:
-            self._open_new_order(customer_id)
-        else:
-            phone = self._last_call_data.get("phone_number", "")
-            self._open_guest_order_for_phone(phone)
 
     def _show_last_call_popup(self) -> None:
         """Son gelen arama popup'ını tekrar göster (ses çalmadan)."""
