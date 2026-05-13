@@ -422,10 +422,8 @@ class MainWindow(QMainWindow):
         from utils.printer_handler import (
             build_customer_receipt_text,
             show_receipt_preview,
-            print_customer_receipt,
             _get_printer,
         )
-        from utils.helpers import format_phone
 
         settings = self._get_settings()
         all_data: list[dict] = []

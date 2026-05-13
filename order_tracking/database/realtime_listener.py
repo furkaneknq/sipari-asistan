@@ -41,7 +41,7 @@ class RealtimeListener(QThread):
     # Bağlantı durumu mesajları (UI'da gösterilebilir)
     status_message = pyqtSignal(str)
 
-    def __init__(self, poll_interval_seconds: float = 2.0, parent=None):
+    def __init__(self, poll_interval_seconds: float = 5.0, parent=None):
         super().__init__(parent)
         self._poll_interval_ms = int(poll_interval_seconds * 1000)
         self._running = True

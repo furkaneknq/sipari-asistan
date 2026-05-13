@@ -237,7 +237,7 @@ class RestClient:
                 "Content-Type": "application/json",
                 "Accept": "application/json",
             },
-            timeout=15.0,
+            timeout=10.0,
         )
 
     def table(self, name: str) -> TableQueryBuilder:

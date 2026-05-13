@@ -113,8 +113,6 @@ class ReceiptPreviewDialog(QDialog):
 
     @staticmethod
     def _build_form(fields: list[tuple[str, QWidget]]) -> QWidget:
-        from PyQt6.QtWidgets import QFormLayout
-
         w = QWidget()
         fl = QFormLayout(w)
         fl.setContentsMargins(0, 4, 0, 4)

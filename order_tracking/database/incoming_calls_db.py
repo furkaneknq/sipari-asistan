@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import time
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from .supabase_client import get_client
+
+# phones tablosu cache — her sorguda DB'ye gitmemek için
+_phone_cache: dict[str, str] = {}  # device_id → device_name
+_phone_cache_ts: float = 0.0
+_PHONE_CACHE_TTL = 300  # 5 dakika
 
 
 def list_calls(
@@ -49,28 +55,38 @@ def list_calls(
     return rows
 
 
-def _enrich_device_names(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """device_id → phones.device_name basit eşleştirme."""
-    if not rows:
-        return rows
-    device_ids = {r.get("device_id") for r in rows if r.get("device_id")}
-    if not device_ids:
-        return rows
+def _get_phone_cache() -> dict[str, str]:
+    """phones tablosu cache'ini döner, süresi dolmuşsa yeniler."""
+    global _phone_cache, _phone_cache_ts
+    now = time.monotonic()
+    if _phone_cache and (now - _phone_cache_ts) < _PHONE_CACHE_TTL:
+        return _phone_cache
     try:
         res = (
             get_client()
             .table("phones")
             .select("device_id,device_name")
-            .in_("device_id", list(device_ids))
             .execute()
         )
-        name_map = {
+        _phone_cache = {
             p["device_id"]: p.get("device_name") or ""
             for p in (res.data or [])
             if p.get("device_id")
         }
+        _phone_cache_ts = now
     except Exception:  # noqa: BLE001
-        name_map = {}
+        pass
+    return _phone_cache
+
+
+def _enrich_device_names(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """device_id → phones.device_name basit eşleştirme (cache'li)."""
+    if not rows:
+        return rows
+    device_ids = {r.get("device_id") for r in rows if r.get("device_id")}
+    if not device_ids:
+        return rows
+    name_map = _get_phone_cache()
     for r in rows:
         did = r.get("device_id")
         if did and did in name_map:
@@ -143,24 +159,27 @@ def enrich_calls_with_customer(
         if cnorm not in by_norm_cust:
             by_norm_cust[cnorm] = c
 
-    # Eşleşmeyenler için boşluk/tire içeren olası kayıtları ilike ile yokla.
+    # Eşleşmeyenler için boşluk/tire içeren olası kayıtları tek sorguda yokla.
     missing = [n for n in by_norm_calls if n not in by_norm_cust]
     if missing:
         try:
-            for norm in missing:
+            # Benzersiz son-4-hane parçalarını topla → tek or_ sorgusu
+            suffixes = list({n[-4:] for n in missing if len(n) >= 4})
+            if suffixes:
+                or_expr = ",".join(f"phone.ilike.%{s}%" for s in suffixes)
                 res = (
                     client.table("customers")
                     .select("id,name,phone,is_guest")
-                    .ilike("phone", f"%{norm[-4:]}%")
-                    .limit(10)
+                    .or_(or_expr)
+                    .limit(50)
                     .execute()
                 )
                 for c in (res.data or []):
                     if c.get("is_guest"):
-                        continue  # misafir kayıtlarını atla
-                    if normalize_phone(c.get("phone") or "") == norm:
-                        if norm not in by_norm_cust:
-                            by_norm_cust[norm] = c
+                        continue
+                    cnorm = normalize_phone(c.get("phone") or "")
+                    if cnorm in missing and cnorm not in by_norm_cust:
+                        by_norm_cust[cnorm] = c
         except Exception:  # noqa: BLE001
             pass
 
