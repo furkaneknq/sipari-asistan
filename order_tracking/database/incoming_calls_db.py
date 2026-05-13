@@ -30,11 +30,13 @@ def list_calls(
         .limit(limit)
     )
     if start_date is not None:
-        start_dt = datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc)
+        local_tz = datetime.now().astimezone().tzinfo
+        start_dt = datetime.combine(start_date, datetime.min.time(), tzinfo=local_tz)
         query = query.gte("created_at", start_dt.isoformat())
     if end_date is not None:
+        local_tz = datetime.now().astimezone().tzinfo
         end_dt = datetime.combine(
-            end_date + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc
+            end_date + timedelta(days=1), datetime.min.time(), tzinfo=local_tz
         )
         query = query.lt("created_at", end_dt.isoformat())
     if only_unprocessed:

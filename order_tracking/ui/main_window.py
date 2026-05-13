@@ -254,7 +254,7 @@ class MainWindow(QMainWindow):
                 try:
                     from database import incoming_calls_db
                     incoming_calls_db.mark_unanswered(call_id)
-                    self.incoming_calls_panel.refresh()
+                    self.calls_panel.refresh()
                 except Exception as exc:  # noqa: BLE001
                     print(f"Cevapsız işaretleme hatası: {exc}")
 

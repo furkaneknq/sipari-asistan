@@ -46,13 +46,16 @@ def format_currency(amount: float | Decimal | int | None, symbol: str = "₺") -
 
 
 def parse_iso_datetime(value: str | None) -> datetime | None:
-    """ISO 8601 string'i datetime'a çevirir."""
+    """ISO 8601 string'i datetime'a çevirir ve yerel saate dönüştürür."""
     if not value:
         return None
     try:
         if value.endswith("Z"):
             value = value.replace("Z", "+00:00")
-        return datetime.fromisoformat(value)
+        dt = datetime.fromisoformat(value)
+        if dt.tzinfo is not None:
+            dt = dt.astimezone()
+        return dt
     except ValueError:
         return None
 
