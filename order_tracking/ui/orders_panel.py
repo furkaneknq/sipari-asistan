@@ -50,12 +50,6 @@ PAYMENT_LABELS = {
 COURIER_FILTER_TUM = "__all__"
 COURIER_FILTER_ATANMAMIS = "__none__"
 
-PAYMENT_FILTER_OPTIONS = [
-    ("Tüm Ödemeler", None),
-    ("Nakit", "cash"),
-    ("Kredi Kartı", "credit_card"),
-    ("IBAN", "iban"),
-]
 
 class NumericItem(QTableWidgetItem):
     """Sayısal değere göre sıralanan tablo hücresi."""
@@ -79,6 +73,8 @@ class OrdersPanel(QWidget):
     print_bulk_customer_requested = pyqtSignal(list)
     print_preparation_requested = pyqtSignal(list)
     open_customer_requested = pyqtSignal(str)
+    last_caller_order_requested = pyqtSignal()
+    show_last_call_popup_requested = pyqtSignal()
 
     # Sütun indexleri
     COL_CHECK = 0
@@ -100,7 +96,6 @@ class OrdersPanel(QWidget):
         self.end_date: date = date.today()
         self._current_orders: list[dict[str, Any]] = []
         self._auto_refresh = True
-        self._payment_filter: str | None = None
         self._courier_filter: str | None = None  # None=Tümü, "__none__"=Atanmamış, uuid=spesifik kurye
 
         self._build_ui()
@@ -144,12 +139,6 @@ class OrdersPanel(QWidget):
         cal_layout.addWidget(self.range_label)
         calendar_box.setLayout(cal_layout)
 
-        # Ödeme tipi filtresi
-        self.payment_filter_combo = QComboBox()
-        for label, value in PAYMENT_FILTER_OPTIONS:
-            self.payment_filter_combo.addItem(label, value)
-        self.payment_filter_combo.currentIndexChanged.connect(self._on_payment_filter)
-
         # Kurye filtresi (couriers tablosundan dinamik doldurulacak)
         self.courier_filter_combo = QComboBox()
         self._populate_courier_filter()
@@ -157,8 +146,6 @@ class OrdersPanel(QWidget):
 
         filter_box = QGroupBox("🔍 Filtreler")
         f_layout = QVBoxLayout()
-        f_layout.addWidget(QLabel("Ödeme:"))
-        f_layout.addWidget(self.payment_filter_combo)
         f_layout.addWidget(QLabel("Kurye:"))
         f_layout.addWidget(self.courier_filter_combo)
         filter_box.setLayout(f_layout)
@@ -181,9 +168,9 @@ class OrdersPanel(QWidget):
         delete_btn.setToolTip("Seçili sipariş(ler)i sil (Del)")
         delete_btn.clicked.connect(self._delete_selected)
 
-        print_btn = QPushButton("🖨 Müşteri Fişi")
+        print_btn = QPushButton("🖨 Sipariş Fişi")
         print_btn.setShortcut(QKeySequence("Ctrl+P"))
-        print_btn.setToolTip("Seçili sipariş(ler)in müşteri fişini yazdır (Ctrl+P)")
+        print_btn.setToolTip("Seçili sipariş(ler)in sipariş fişini yazdır (Ctrl+P)")
         print_btn.clicked.connect(self._print_customer_receipt)
 
         prep_btn = QPushButton("📋 Hazırlama Fişi")
@@ -201,9 +188,19 @@ class OrdersPanel(QWidget):
         self.auto_refresh_check.setChecked(True)
         self.auto_refresh_check.toggled.connect(self._toggle_auto_refresh)
 
+        last_caller_btn = QPushButton("📞 Son Arayana Sipariş")
+        last_caller_btn.setToolTip("Son gelen aramanın müşterisine yeni sipariş oluştur")
+        last_caller_btn.clicked.connect(self.last_caller_order_requested.emit)
+
+        show_popup_btn = QPushButton("📲 Son Çağrıyı Göster")
+        show_popup_btn.setToolTip("Son gelen arama popup'ını tekrar aç")
+        show_popup_btn.clicked.connect(self.show_last_call_popup_requested.emit)
+
         actions_box = QGroupBox("⚙ İşlemler")
         a_layout = QVBoxLayout()
         a_layout.addWidget(new_btn)
+        a_layout.addWidget(last_caller_btn)
+        a_layout.addWidget(show_popup_btn)
         a_layout.addWidget(edit_btn)
         a_layout.addWidget(deliver_btn)
         a_layout.addWidget(print_btn)
@@ -420,10 +417,6 @@ class OrdersPanel(QWidget):
     # ==================================================================
     # Filtre
     # ==================================================================
-    def _on_payment_filter(self) -> None:
-        self._payment_filter = self.payment_filter_combo.currentData()
-        self.refresh()
-
     def _on_courier_filter(self) -> None:
         val = self.courier_filter_combo.currentData()
         self._courier_filter = val if val != COURIER_FILTER_TUM else None
@@ -639,12 +632,8 @@ class OrdersPanel(QWidget):
     def _apply_local_filters(
         self, orders: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        """Ödeme tipi ve kurye filtrelerini istemci tarafında uygular."""
+        """Kurye filtresini istemci tarafında uygular."""
         filtered = orders
-        if self._payment_filter:
-            filtered = [
-                o for o in filtered if o.get("payment_method") == self._payment_filter
-            ]
         if self._courier_filter == COURIER_FILTER_ATANMAMIS:
             filtered = [o for o in filtered if not o.get("courier_id")]
         elif self._courier_filter:
@@ -1071,7 +1060,7 @@ class OrdersPanel(QWidget):
             )
             menu.addAction(cust_act)
 
-        print_act = QAction("🖨 Müşteri Fişi", self)
+        print_act = QAction("🖨 Sipariş Fişi", self)
         print_act.triggered.connect(self._print_customer_receipt)
         menu.addAction(print_act)
 

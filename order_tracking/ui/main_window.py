@@ -46,6 +46,7 @@ class MainWindow(QMainWindow):
         fit_to_screen(self, 1400, 900, min_w_ratio=0.5, min_h_ratio=0.5)
 
         self._popups: list[IncomingCallPopup] = []
+        self._last_call_data: dict[str, Any] | None = None
 
         self._build_ui()
         self._start_listener()
@@ -102,6 +103,8 @@ class MainWindow(QMainWindow):
         self.orders_panel.print_bulk_customer_requested.connect(self._print_bulk_customer)
         self.orders_panel.print_preparation_requested.connect(self._print_preparation)
         self.orders_panel.open_customer_requested.connect(self._open_customer_detail)
+        self.orders_panel.last_caller_order_requested.connect(self._order_for_last_caller)
+        self.orders_panel.show_last_call_popup_requested.connect(self._show_last_call_popup)
 
         self.calls_panel.create_order_requested.connect(self._open_new_order_for_customer)
         self.calls_panel.create_customer_requested.connect(
@@ -214,6 +217,7 @@ class MainWindow(QMainWindow):
 
     def _on_incoming_call(self, call: dict[str, Any]) -> None:
         """Yeni gelen arama → popup göster + Arama Geçmişi panelini yenile."""
+        self._last_call_data = call
         # Bildirim sesi çal
         self._play_call_notification_sound()
         # Popup top-level olarak oluşturuluyor; referansı listeyle koruyoruz.
@@ -352,6 +356,36 @@ class MainWindow(QMainWindow):
             self.orders_panel.refresh()
             if dlg.print_after_save and dlg.saved_order_id:
                 self._print_order(dlg.saved_order_id)
+
+    def _order_for_last_caller(self) -> None:
+        """Son gelen aramanın müşterisine sipariş aç."""
+        if not self._last_call_data:
+            QMessageBox.information(self, "Bilgi", "Henüz gelen arama yok.")
+            return
+        customer_id = self._last_call_data.get("customer_id")
+        if customer_id:
+            self._open_new_order(customer_id)
+        else:
+            phone = self._last_call_data.get("phone_number", "")
+            self._open_guest_order_for_phone(phone)
+
+    def _show_last_call_popup(self) -> None:
+        """Son gelen arama popup'ını tekrar göster (ses çalmadan)."""
+        if not self._last_call_data:
+            QMessageBox.information(self, "Bilgi", "Henüz gelen arama yok.")
+            return
+        call = self._last_call_data
+        popup = IncomingCallPopup(call, parent=self)
+        popup.setStyleSheet(self.styleSheet())
+        popup.create_order_requested.connect(self._open_new_order_for_customer)
+        popup.create_customer_requested.connect(self._open_new_customer_with_phone)
+        popup.create_guest_order_requested.connect(self._open_guest_order_for_phone)
+        popup.closed.connect(self._on_popup_closed)
+        self._popups.append(popup)
+        self._reposition_popups()
+        popup.show()
+        popup.raise_()
+        popup.activateWindow()
 
     def _open_new_order_for_customer(self, customer_id: str) -> None:
         self._open_new_order(customer_id)
