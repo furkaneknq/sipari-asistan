@@ -485,11 +485,15 @@ class OrdersPanel(QWidget):
             customer = order.get("customers") or {}
             courier = order.get("couriers") or {}
 
-            # Checkbox
+            # Checkbox (ortalanmış)
             checkbox = QCheckBox()
-            checkbox.setStyleSheet("QCheckBox { margin-left: 4px; }")
             checkbox.setChecked(False)
-            self.orders_table.setCellWidget(row, self.COL_CHECK, checkbox)
+            chk_wrapper = QWidget()
+            chk_layout = QHBoxLayout(chk_wrapper)
+            chk_layout.addWidget(checkbox)
+            chk_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            chk_layout.setContentsMargins(0, 0, 0, 0)
+            self.orders_table.setCellWidget(row, self.COL_CHECK, chk_wrapper)
 
             # S.No (sayısal sıralanabilir)
             number = order.get("order_number") or 0
@@ -841,9 +845,11 @@ class OrdersPanel(QWidget):
 
         # Checkbox'lardan seçilen satırları bul
         for row in range(self.orders_table.rowCount()):
-            widget = self.orders_table.cellWidget(row, self.COL_CHECK)
-            if widget and isinstance(widget, QCheckBox) and widget.isChecked():
-                checked_rows.add(row)
+            wrapper = self.orders_table.cellWidget(row, self.COL_CHECK)
+            if wrapper:
+                cb = wrapper.findChild(QCheckBox)
+                if cb and cb.isChecked():
+                    checked_rows.add(row)
 
         # Seçili satırları da ekle
         selected_rows = {idx.row() for idx in self.orders_table.selectedIndexes()}
