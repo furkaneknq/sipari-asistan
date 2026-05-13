@@ -70,6 +70,7 @@ PRINTER_USB_VENDOR_ID: str = os.getenv("PRINTER_USB_VENDOR_ID", "0x04b8")
 PRINTER_USB_PRODUCT_ID: str = os.getenv("PRINTER_USB_PRODUCT_ID", "0x0202")
 PRINTER_NETWORK_HOST: str = os.getenv("PRINTER_NETWORK_HOST", "")
 PRINTER_NETWORK_PORT: int = int(os.getenv("PRINTER_NETWORK_PORT", "9100") or 9100)
+PRINTER_WIN_NAME: str = os.getenv("PRINTER_WIN_NAME", "")  # Windows yazıcı adı (ör: "XP-80C")
 PRINTER_PAPER_WIDTH: int = int(os.getenv("PRINTER_PAPER_WIDTH", "80") or 80)
 
 # ---------- UI ----------

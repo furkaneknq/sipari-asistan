@@ -4,7 +4,7 @@
   1. Müşteri fişi   — print_customer_receipt(order_data)
   2. Hazırlama fişi — print_preparation_receipt(selected_orders)
 
-Üç bağlantı modu: usb | network | dummy (önizleme)
+Dört bağlantı modu: usb | network | windows | dummy (önizleme)
 Türkçe karakter desteği, otomatik kağıt kesimi.
 """
 
@@ -19,6 +19,42 @@ import config
 # =====================================================================
 # YAZDIRICI BAĞLANTISI
 # =====================================================================
+
+class _WinRawPrinter:
+    """Windows yazıcı spooler'ına RAW ESC/POS verisi gönderen sarmalayıcı.
+
+    python-escpos gerektirmez; win32print ile çalışır.
+    Zadig / libusb kurulumu gerekmez.
+    """
+
+    def __init__(self, printer_name: str) -> None:
+        import win32print  # noqa: F811
+        self._name = printer_name
+        self._handle = win32print.OpenPrinter(printer_name)
+        win32print.StartDocPrinter(self._handle, 1, ("ESC/POS", None, "RAW"))
+        win32print.StartPagePrinter(self._handle)
+        self._buf = bytearray()
+
+    # ---- escpos uyumlu minimal API ----
+    def set(self, **_kw) -> None:  # noqa: D401
+        """Bold/size komutları — şimdilik yok sayılıyor."""
+
+    def text(self, txt: str) -> None:
+        self._buf.extend(txt.encode("cp857", errors="replace"))
+
+    def cut(self) -> None:
+        self._buf.extend(b"\n\n\n\x1d\x56\x00")  # GS V 0 = tam kesim
+
+    def close(self) -> None:
+        import win32print
+        if self._buf:
+            win32print.WritePrinter(self._handle, bytes(self._buf))
+            self._buf.clear()
+        win32print.EndPagePrinter(self._handle)
+        win32print.EndDocPrinter(self._handle)
+        win32print.ClosePrinter(self._handle)
+        self._handle = None
+
 
 def _get_printer():
     """config ayarlarına göre yazıcı nesnesi döner. Bulamazsa None."""
@@ -36,6 +72,11 @@ def _get_printer():
             host = config.PRINTER_NETWORK_HOST or "192.168.1.100"
             port = int(config.PRINTER_NETWORK_PORT or 9100)
             return Network(host, port=port)
+        elif ptype == "windows":
+            name = config.PRINTER_WIN_NAME
+            if not name:
+                return None
+            return _WinRawPrinter(name)
     except Exception:  # noqa: BLE001
         return None
     return None
