@@ -36,6 +36,7 @@ def list_calls(
 
     rows = query.execute().data or []
     rows = enrich_calls_with_customer(rows)
+    rows = _enrich_device_names(rows)
 
     if search:
         s = search.strip().lower()
@@ -45,6 +46,34 @@ def list_calls(
             if s in (r.get("phone_number") or "").lower()
             or s in ((r.get("customers") or {}).get("name") or "").lower()
         ]
+    return rows
+
+
+def _enrich_device_names(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """device_id → phones.device_name eşleştirmesi yapar."""
+    if not rows:
+        return rows
+    device_ids = {r.get("device_id") for r in rows if r.get("device_id")}
+    if not device_ids:
+        return rows
+    try:
+        res = (
+            get_client()
+            .table("phones")
+            .select("device_id,device_name")
+            .in_("device_id", list(device_ids))
+            .execute()
+        )
+        name_map = {
+            p.get("device_id"): p.get("device_name") or ""
+            for p in (res.data or [])
+        }
+    except Exception:  # noqa: BLE001
+        name_map = {}
+    for r in rows:
+        did = r.get("device_id")
+        if did and did in name_map:
+            r["phones"] = {"device_name": name_map[did]}
     return rows
 
 

@@ -524,6 +524,8 @@ black .
 - **6 May 2026** — Refactor 1: Kanban kaldırıldı, klasik tablo geldi (resmi referans alarak), Arama Geçmişi sekmesi eklendi, sipariş durumları sadeleştirildi
 - **6 May 2026** — Refactor 2: Müşteri silme, tek seferlik (misafir) sipariş, sıralama, müşteri detay sağ tık, sütun temizleme, aranabilir müşteri (autocomplete)
 - **8 May 2026** — Bu hand-off dökümanı yazıldı
+- **12 May 2026** — v1.0.4: A4 yazıcı seçimi UI + çoklu kurye atama
+- **13 May 2026** — v1.0.5: Çoklu seçim checkbox, adres düzenleme, popup düzeltmeleri, cihaz adı gösterimi, sipariş tutarı sütunu
 
 **Tasarım kararları neden böyle:**
 
@@ -539,6 +541,6 @@ black .
 
 ---
 
-> **TLDR:** Veritabanı + masaüstü hazır ve test edilmiş. Android tarafı tamamen yapılacak. Yakın zamanda 4 küçük UX iyileştirmesi bekleniyor (madde 12.1-4). Kod 6K satır civarı, lint temiz, modüler.
+> **TLDR:** Veritabanı + masaüstü hazır ve test edilmiş. Android tarafı tamamen yapılacak. v1.0.5 ile çoklu seçim, adres düzenleme, cevapsız arama işaretleme, sipariş tutarı sütunu eklendi. Kod ~6.5K satır, modüler.
 
 İyi geliştirmeler. Sorularını HANDOFF.md'yi okuduktan sonra sırayla `database/` → `order_tracking/main.py` → `order_tracking/ui/main_window.py` yolu üzerinden çözebilirsin.

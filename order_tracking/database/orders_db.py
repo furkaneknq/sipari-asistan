@@ -144,10 +144,12 @@ def create_order(
     delivery_date: date | None = None,
     status: str = STATUS_NEW,
     total_override: float | None = None,
+    address_text: str | None = None,
 ) -> dict[str, Any]:
     """Yeni sipariş ve ilgili sipariş kalemlerini ekler.
 
     items: [{product_id, name (yedek), quantity, unit, unit_price, notes}]
+    address_text: Sipariş anındaki adres metni (snapshot).
     """
     client = get_client()
     payload = {
@@ -161,6 +163,7 @@ def create_order(
         "payment_method": payment_method,
         "payment_status": payment_status,
         "notes": notes,
+        "address_text": address_text,
     }
     order = (client.table("orders").insert(payload).execute().data or [{}])[0]
     order_id = order.get("id")

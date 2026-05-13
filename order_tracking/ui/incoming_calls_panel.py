@@ -83,7 +83,7 @@ class IncomingCallsPanel(QWidget):
         # Tablo
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(
-            ["Tarih / Saat", "Telefon", "Müşteri", "Cihaz", "Durum", ""]
+            ["Tarih / Saat", "Telefon", "Müşteri", "Cihaz Adı", "Durum", ""]
         )
         self.table.horizontalHeader().setSectionResizeMode(
             2, QHeaderView.ResizeMode.Stretch
@@ -138,6 +138,9 @@ class IncomingCallsPanel(QWidget):
             row = self.table.rowCount()
             self.table.insertRow(row)
             customer = call.get("customers") or {}
+            # Müşteri silindiyse customer_id NULL olur, join boş döner
+            # enrich fonksiyonu da bulamayabilir → kayıtsız göster
+            cust_id = customer.get("id")
 
             dt = parse_iso_datetime(call.get("created_at"))
             date_str = dt.strftime("%d.%m.%Y %H:%M:%S") if dt else ""
@@ -150,14 +153,15 @@ class IncomingCallsPanel(QWidget):
 
             cust_name = customer.get("name") or "(Kayıtsız)"
             cust_item = QTableWidgetItem(cust_name)
-            cust_item.setData(Qt.ItemDataRole.UserRole, customer.get("id"))
-            if not customer.get("id"):
+            cust_item.setData(Qt.ItemDataRole.UserRole, cust_id)
+            if not cust_id:
                 cust_item.setForeground(Qt.GlobalColor.darkGray)
             self.table.setItem(row, 2, cust_item)
 
-            self.table.setItem(
-                row, 3, QTableWidgetItem(call.get("device_id") or "-")
-            )
+            # Cihaz adı: phones tablosundan device_name göster
+            device_name = (call.get("phones") or {}).get("device_name") or ""
+            device_display = device_name or call.get("device_id") or "-"
+            self.table.setItem(row, 3, QTableWidgetItem(device_display))
             is_unanswered = call.get("is_unanswered", False)
             if is_unanswered:
                 status_text = "❌ Cevapsız"
@@ -172,11 +176,11 @@ class IncomingCallsPanel(QWidget):
             self.table.setItem(row, 4, status_item)
 
             # Hızlı butonlar
-            if customer.get("id"):
+            if cust_id:
                 btn = QPushButton("Sipariş Aç")
                 btn.setObjectName("SuccessButton")
                 btn.clicked.connect(
-                    lambda _, cid=customer.get("id"), call_id=call.get(
+                    lambda _, cid=cust_id, call_id=call.get(
                         "id"
                     ): self._open_order_for(cid, call_id)
                 )

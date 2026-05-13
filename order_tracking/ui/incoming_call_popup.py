@@ -34,6 +34,7 @@ class IncomingCallPopup(QWidget):
         super().__init__(None)
         self._parent_ref = parent  # referansı garbage collection'a karşı koru
         self.call_data = call_data
+        self._closed_internally = False
         self.setObjectName("IncomingCallPopup")
         # Windows'ta WindowDoesNotAcceptFocus + WA_ShowWithoutActivating
         # kombinasyonu popup'ı bazen görünmez kılıyor.
@@ -122,8 +123,16 @@ class IncomingCallPopup(QWidget):
         self.create_guest_order_requested.emit(phone)
 
     def _close(self, unanswered: bool = False) -> None:
+        self._closed_internally = True
         self.closed.emit(self, unanswered)
         self.close()
+
+    def closeEvent(self, event) -> None:  # noqa: N802
+        # Pencere başlık çubuğundaki X tuşuyla kapatıldığında da
+        # cevapsız arama olarak işaretle (iç ✕ butonu ile aynı davranış).
+        if not self._closed_internally:
+            self.closed.emit(self, True)
+        super().closeEvent(event)
 
     # ------------------------------------------------------------------
     def position_at(self, x: int, y: int) -> None:

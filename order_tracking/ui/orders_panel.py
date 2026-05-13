@@ -87,9 +87,10 @@ class OrdersPanel(QWidget):
     COL_ADDRESS = 5
     COL_PAYMENT = 6
     COL_QUANTITY = 7
-    COL_PAID = 8
-    COL_COURIER = 9
-    COL_STATUS = 10
+    COL_AMOUNT = 8
+    COL_PAID = 9
+    COL_COURIER = 10
+    COL_STATUS = 11
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -242,7 +243,7 @@ class OrdersPanel(QWidget):
         title_row.addWidget(refresh_btn)
 
         # Sipariş tablosu
-        self.orders_table = QTableWidget(0, 11)
+        self.orders_table = QTableWidget(0, 12)
         self.orders_table.setHorizontalHeaderLabels(
             [
                 "✓",
@@ -253,6 +254,7 @@ class OrdersPanel(QWidget):
                 "Adres",
                 "Ödeme",
                 "Adet",
+                "Tutar",
                 "Ödenen",
                 "Kurye",
                 "Durum",
@@ -536,11 +538,15 @@ class OrdersPanel(QWidget):
                 QTableWidgetItem(format_phone(customer.get("phone") or "")),
             )
 
-            # Adres
-            addr = order.get("customer_addresses") or {}
-            addr_text = addr.get("address_text") or ""
-            addr_title = addr.get("title") or ""
-            addr_display = f"{addr_title} - {addr_text}".strip(" -") if addr_text else "-"
+            # Adres (snapshot tercihli, yoksa join'den gelen adres)
+            snapshot_addr = order.get("address_text") or ""
+            if snapshot_addr:
+                addr_display = snapshot_addr
+            else:
+                addr = order.get("customer_addresses") or {}
+                addr_text = addr.get("address_text") or ""
+                addr_title = addr.get("title") or ""
+                addr_display = f"{addr_title} - {addr_text}".strip(" -") if addr_text else "-"
             addr_item = QTableWidgetItem(addr_display)
             addr_item.setToolTip(addr_display)
             self.orders_table.setItem(row, self.COL_ADDRESS, addr_item)
@@ -564,6 +570,12 @@ class OrdersPanel(QWidget):
 
             amt = float(order.get("total_amount") or 0)
             total_amt += amt
+
+            # Sipariş Tutarı (inline edit edilebilir)
+            amt_sort_item = NumericItem("", amt)
+            self.orders_table.setItem(row, self.COL_AMOUNT, amt_sort_item)
+            amt_spin = self._make_amount_spin(order.get("id"), amt, row)
+            self.orders_table.setCellWidget(row, self.COL_AMOUNT, amt_spin)
 
             # Ödenen (inline edit edilebilir)
             # Önce paid_amount kolonu, yoksa eski mantığa düş (payment_status='paid')
@@ -749,6 +761,64 @@ class OrdersPanel(QWidget):
         self.summary_qty.setText(self._format_qty(total_qty))
         self.summary_total.setText(format_currency(total_amt))
         self.summary_paid.setText(format_currency(total_paid))
+
+    # ==================================================================
+    # Inline Sipariş Tutarı düzenleme
+    # ==================================================================
+    def _make_amount_spin(
+        self, order_id: str, amount: float, row: int
+    ) -> QDoubleSpinBox:
+        spin = QDoubleSpinBox()
+        spin.setDecimals(2)
+        spin.setMaximum(999_999.99)
+        spin.setSingleStep(1.0)
+        spin.setSuffix(" ₺")
+        spin.setAlignment(Qt.AlignmentFlag.AlignRight)
+        spin.setValue(amount)
+        spin.setProperty("order_id", order_id)
+        spin.setStyleSheet(
+            "QDoubleSpinBox { font-weight: bold; padding: 2px 6px; "
+            "border: 1px solid #45475A; border-radius: 3px; }"
+        )
+        spin.editingFinished.connect(lambda s=spin: self._on_amount_edited(s))
+        return spin
+
+    def _on_amount_edited(self, spin: QDoubleSpinBox) -> None:
+        order_id = spin.property("order_id")
+        if not order_id:
+            return
+        new_amount = float(spin.value())
+
+        try:
+            orders_db.update_order_payment(order_id, total_amount=new_amount)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "Tutar Kayıt Hatası", str(exc))
+            return
+
+        # Lokal cache güncelle
+        for order in self._current_orders:
+            if order.get("id") == order_id:
+                order["total_amount"] = new_amount
+                break
+
+        # Aynı satırdaki Ödenen spinbox'ın order_total'ını da güncelle
+        for row in range(self.orders_table.rowCount()):
+            num_item = self.orders_table.item(row, self.COL_NUMBER)
+            if not num_item:
+                continue
+            if num_item.data(Qt.ItemDataRole.UserRole) == order_id:
+                amt_item = self.orders_table.item(row, self.COL_AMOUNT)
+                if isinstance(amt_item, NumericItem):
+                    amt_item._value = new_amount  # noqa: SLF001
+                paid_spin = self.orders_table.cellWidget(row, self.COL_PAID)
+                if isinstance(paid_spin, QDoubleSpinBox):
+                    paid_spin.setProperty("order_total", new_amount)
+                    self._style_paid_spin(
+                        paid_spin, float(paid_spin.value()), new_amount
+                    )
+                break
+
+        self._recalculate_summary()
 
     @staticmethod
     def _status_label(order: dict[str, Any]) -> str:

@@ -846,6 +846,15 @@ class OrderDetailDialog(QDialog):
         paid_amount = float(self.payment_amount.value())
         cart_total = float(getattr(self, "_cart_total", 0.0))
 
+        # Adres snapshot: sipariş anındaki adresi sabit sakla
+        if is_guest:
+            snapshot_address = self.guest_address_input.text().strip() or None
+        elif addr_id and self._addresses:
+            matched = next((a for a in self._addresses if a.get("id") == addr_id), None)
+            snapshot_address = matched.get("address_text") if matched else None
+        else:
+            snapshot_address = None
+
         # Kurye atandıysa durum otomatik "yolda", yoksa "yeni"
         # (Mevcut sipariş zaten "delivered" ise, dokunmuyoruz)
         existing_status = (
@@ -874,13 +883,16 @@ class OrderDetailDialog(QDialog):
                 # tarih/saat/notlar (orders_db kapsamı dışındaki alanlar)
                 from database.supabase_client import get_client
 
+                update_fields: dict = {
+                    "address_id": addr_id,
+                    "order_date": order_d.isoformat(),
+                    "delivery_time": delivery_t,
+                    "notes": notes,
+                }
+                if snapshot_address is not None:
+                    update_fields["address_text"] = snapshot_address
                 get_client().table("orders").update(
-                    {
-                        "address_id": addr_id,
-                        "order_date": order_d.isoformat(),
-                        "delivery_time": delivery_t,
-                        "notes": notes,
-                    }
+                    update_fields
                 ).eq("id", self.order_id).execute()
                 self.saved_order_id = self.order_id
             else:
@@ -903,6 +915,7 @@ class OrderDetailDialog(QDialog):
                     order_date=order_d,
                     delivery_time=delivery_t,
                     status=new_status,
+                    address_text=snapshot_address,
                 )
                 new_id = created.get("id")
                 # paid_amount'ı ayrıca yaz (create_order parametresi yok)
