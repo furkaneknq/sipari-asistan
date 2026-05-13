@@ -75,9 +75,13 @@ class CustomerDetailDialog(QDialog):
             1, QHeaderView.ResizeMode.Stretch
         )
         self.address_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.address_table.cellDoubleClicked.connect(self._on_address_double_click)
 
         add_addr_btn = QPushButton("+ Yeni Adres")
         add_addr_btn.clicked.connect(self._add_address)
+
+        edit_addr_btn = QPushButton("✏ Adres Düzenle")
+        edit_addr_btn.clicked.connect(self._edit_address)
 
         edit_loc_btn = QPushButton("📍 Konum Düzenle")
         edit_loc_btn.clicked.connect(self._edit_location)
@@ -88,6 +92,7 @@ class CustomerDetailDialog(QDialog):
 
         addr_btn_row = QHBoxLayout()
         addr_btn_row.addWidget(add_addr_btn)
+        addr_btn_row.addWidget(edit_addr_btn)
         addr_btn_row.addWidget(edit_loc_btn)
         addr_btn_row.addWidget(del_addr_btn)
         addr_btn_row.addStretch()
@@ -333,5 +338,58 @@ class CustomerDetailDialog(QDialog):
         try:
             customers_db.delete_address(addr_id)
             self._reload_addresses()
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "Hata", str(exc))
+
+    def _on_address_double_click(self, row: int, col: int) -> None:
+        """Adres satırı çift tıklandığında düzenleme dialog'u aç."""
+        if row < 0:
+            return
+        self._edit_address()
+
+    def _edit_address(self) -> None:
+        """Seçili adresin metnini düzenle."""
+        row = self.address_table.currentRow()
+        if row < 0:
+            QMessageBox.information(self, "Seçim", "Lütfen bir adres satırı seçin.")
+            return
+        item = self.address_table.item(row, 0)
+        if not item:
+            return
+        addr_id = item.data(Qt.ItemDataRole.UserRole)
+        if not addr_id:
+            return
+
+        current_title = self.address_table.item(row, 0).text() if self.address_table.item(row, 0) else ""
+        current_address = self.address_table.item(row, 1).text() if self.address_table.item(row, 1) else ""
+
+        title, ok1 = QInputDialog.getItem(
+            self,
+            "Adres Başlığı",
+            "Başlık:",
+            ["Ev", "İş", "Diğer"],
+            ["Ev", "İş", "Diğer"].index(current_title) if current_title in ["Ev", "İş", "Diğer"] else 0,
+            True,
+        )
+        if not ok1:
+            return
+
+        address, ok2 = QInputDialog.getText(
+            self,
+            "Adres Metni",
+            "Açık adres:",
+            QLineEdit.EchoMode.Normal,
+            current_address,
+        )
+        if not ok2 or not address.strip():
+            return
+
+        try:
+            customers_db.update_address(addr_id, {
+                "title": title.strip(),
+                "address_text": address.strip(),
+            })
+            self._reload_addresses()
+            QMessageBox.information(self, "Kaydedildi", "Adres güncellendi.")
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "Hata", str(exc))

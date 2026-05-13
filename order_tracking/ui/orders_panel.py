@@ -79,16 +79,17 @@ class OrdersPanel(QWidget):
     open_customer_requested = pyqtSignal(str)
 
     # Sütun indexleri
-    COL_NUMBER = 0
-    COL_DATE = 1
-    COL_CUSTOMER = 2
-    COL_PHONE = 3
-    COL_ADDRESS = 4
-    COL_PAYMENT = 5
-    COL_QUANTITY = 6
-    COL_PAID = 7
-    COL_COURIER = 8
-    COL_STATUS = 9
+    COL_CHECK = 0
+    COL_NUMBER = 1
+    COL_DATE = 2
+    COL_CUSTOMER = 3
+    COL_PHONE = 4
+    COL_ADDRESS = 5
+    COL_PAYMENT = 6
+    COL_QUANTITY = 7
+    COL_PAID = 8
+    COL_COURIER = 9
+    COL_STATUS = 10
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -241,9 +242,10 @@ class OrdersPanel(QWidget):
         title_row.addWidget(refresh_btn)
 
         # Sipariş tablosu
-        self.orders_table = QTableWidget(0, 10)
+        self.orders_table = QTableWidget(0, 11)
         self.orders_table.setHorizontalHeaderLabels(
             [
+                "✓",
                 "S.No",
                 "Tarih",
                 "Müşteri",
@@ -255,6 +257,9 @@ class OrdersPanel(QWidget):
                 "Kurye",
                 "Durum",
             ]
+        )
+        self.orders_table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.ResizeToContents
         )
         self.orders_table.horizontalHeader().setSectionResizeMode(
             self.COL_ADDRESS, QHeaderView.ResizeMode.Stretch
@@ -482,6 +487,12 @@ class OrdersPanel(QWidget):
 
             customer = order.get("customers") or {}
             courier = order.get("couriers") or {}
+
+            # Checkbox
+            checkbox = QCheckBox()
+            checkbox.setStyleSheet("QCheckBox { margin-left: 4px; }")
+            checkbox.setChecked(False)
+            self.orders_table.setCellWidget(row, self.COL_CHECK, checkbox)
 
             # S.No (sayısal sıralanabilir)
             number = order.get("order_number") or 0
@@ -763,10 +774,21 @@ class OrdersPanel(QWidget):
         return next((o for o in self._current_orders if o.get("id") == order_id), None)
 
     def _selected_orders(self) -> list[dict[str, Any]]:
-        """Tüm seçili siparişleri döndür."""
-        rows = sorted({idx.row() for idx in self.orders_table.selectedIndexes()})
+        """Tüm seçili siparişleri döndür (satır seçimi + checkbox seçimi)."""
         result: list[dict[str, Any]] = []
-        for row in rows:
+        checked_rows: set[int] = set()
+
+        # Checkbox'lardan seçilen satırları bul
+        for row in range(self.orders_table.rowCount()):
+            widget = self.orders_table.cellWidget(row, self.COL_CHECK)
+            if widget and isinstance(widget, QCheckBox) and widget.isChecked():
+                checked_rows.add(row)
+
+        # Seçili satırları da ekle
+        selected_rows = {idx.row() for idx in self.orders_table.selectedIndexes()}
+        all_rows = checked_rows | selected_rows
+
+        for row in sorted(all_rows):
             item = self.orders_table.item(row, self.COL_NUMBER)
             if not item:
                 continue

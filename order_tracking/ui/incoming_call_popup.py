@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -27,7 +27,7 @@ class IncomingCallPopup(QWidget):
     create_order_requested = pyqtSignal(str)  # customer_id
     create_customer_requested = pyqtSignal(str)  # phone
     create_guest_order_requested = pyqtSignal(str)  # phone
-    closed = pyqtSignal(object)  # self
+    closed = pyqtSignal(object, bool)  # self, was_unanswered
 
     def __init__(self, call_data: dict[str, Any], parent=None) -> None:
         # Parent verilse bile bağımsız bir top-level pencere olmalı.
@@ -93,7 +93,7 @@ class IncomingCallPopup(QWidget):
         close_btn.setObjectName("SecondaryButton")
         close_btn.setMaximumWidth(36)
         close_btn.setToolTip("Kapat")
-        close_btn.clicked.connect(self._close)
+        close_btn.clicked.connect(lambda: self._close(unanswered=True))
         button_row.addWidget(close_btn)
 
         layout = QVBoxLayout(self)
@@ -103,12 +103,6 @@ class IncomingCallPopup(QWidget):
         layout.addWidget(self.match_label)
         layout.addStretch()
         layout.addLayout(button_row)
-
-        # 30 saniye sonra otomatik kapan
-        self._auto_close_timer = QTimer(self)
-        self._auto_close_timer.setSingleShot(True)
-        self._auto_close_timer.timeout.connect(self._close)
-        self._auto_close_timer.start(30_000)
 
     # ------------------------------------------------------------------
     # Bu üç callback'te önce _close() çağırıyoruz; çünkü signal'lerin slot'ları
@@ -127,8 +121,8 @@ class IncomingCallPopup(QWidget):
         self._close()
         self.create_guest_order_requested.emit(phone)
 
-    def _close(self) -> None:
-        self.closed.emit(self)
+    def _close(self, unanswered: bool = False) -> None:
+        self.closed.emit(self, unanswered)
         self.close()
 
     # ------------------------------------------------------------------

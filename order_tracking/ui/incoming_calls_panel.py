@@ -158,8 +158,18 @@ class IncomingCallsPanel(QWidget):
             self.table.setItem(
                 row, 3, QTableWidgetItem(call.get("device_id") or "-")
             )
-            status_text = "✓ İşlendi" if call.get("is_processed") else "● Yeni"
-            self.table.setItem(row, 4, QTableWidgetItem(status_text))
+            is_unanswered = call.get("is_unanswered", False)
+            if is_unanswered:
+                status_text = "❌ Cevapsız"
+            elif call.get("is_processed"):
+                status_text = "✓ İşlendi"
+            else:
+                status_text = "● Yeni"
+            status_item = QTableWidgetItem(status_text)
+            if is_unanswered:
+                status_item.setBackground(Qt.GlobalColor.red)
+                status_item.setForeground(Qt.GlobalColor.white)
+            self.table.setItem(row, 4, status_item)
 
             # Hızlı butonlar
             if customer.get("id"):

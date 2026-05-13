@@ -168,6 +168,13 @@ def mark_processed(call_id: str) -> bool:
     return True
 
 
+def mark_unanswered(call_id: str) -> bool:
+    get_client().table("incoming_calls").update({"is_unanswered": True}).eq(
+        "id", call_id
+    ).execute()
+    return True
+
+
 def delete_call(call_id: str) -> bool:
     get_client().table("incoming_calls").delete().eq("id", call_id).execute()
     return True

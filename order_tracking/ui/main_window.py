@@ -239,10 +239,19 @@ class MainWindow(QMainWindow):
         except Exception:  # noqa: BLE001
             pass
 
-    def _on_popup_closed(self, popup: IncomingCallPopup) -> None:
+    def _on_popup_closed(self, popup: IncomingCallPopup, was_unanswered: bool = False) -> None:
         if popup in self._popups:
             self._popups.remove(popup)
         self._reposition_popups()
+        if was_unanswered:
+            call_id = popup.call_data.get("id")
+            if call_id:
+                try:
+                    from database import incoming_calls_db
+                    incoming_calls_db.mark_unanswered(call_id)
+                    self.incoming_calls_panel.refresh()
+                except Exception as exc:  # noqa: BLE001
+                    print(f"Cevapsız işaretleme hatası: {exc}")
 
     def _screen_for_main_window(self):
         """Multi-monitor'da MainWindow'un bulunduğu ekranı döndür.

@@ -7,6 +7,7 @@ from typing import Any
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QAction, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QFileDialog,
     QHBoxLayout,
     QHeaderView,
@@ -81,15 +82,18 @@ class CustomersPanel(QWidget):
         toolbar.addWidget(delete_btn)
         toolbar.addWidget(new_btn)
 
-        self.table = QTableWidget(0, 4)
+        self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(
-            ["Ad Soyad", "Telefon", "E-posta", "Sipariş Sayısı"]
+            ["✓", "Ad Soyad", "Telefon", "E-posta", "Sipariş Sayısı"]
         )
         self.table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.Stretch
+            0, QHeaderView.ResizeMode.ResizeToContents
         )
         self.table.horizontalHeader().setSectionResizeMode(
-            2, QHeaderView.ResizeMode.Stretch
+            1, QHeaderView.ResizeMode.Stretch
+        )
+        self.table.horizontalHeader().setSectionResizeMode(
+            3, QHeaderView.ResizeMode.Stretch
         )
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -125,22 +129,32 @@ class CustomersPanel(QWidget):
             self.table.insertRow(row)
             id_value = cust.get("id")
 
+            # Checkbox
+            checkbox = QCheckBox()
+            checkbox.setStyleSheet("QCheckBox { margin-left: 4px; }")
+            checkbox.setChecked(False)
+            self.table.setCellWidget(row, 0, checkbox)
+
+            # Ad Soyad
             name_item = QTableWidgetItem(cust.get("name") or "")
             name_item.setData(Qt.ItemDataRole.UserRole, id_value)
-            self.table.setItem(row, 0, name_item)
+            self.table.setItem(row, 1, name_item)
 
+            # Telefon
             self.table.setItem(
-                row, 1, QTableWidgetItem(format_phone(cust.get("phone") or ""))
+                row, 2, QTableWidgetItem(format_phone(cust.get("phone") or ""))
             )
-            self.table.setItem(row, 2, QTableWidgetItem(cust.get("email") or ""))
+            # E-posta
+            self.table.setItem(row, 3, QTableWidgetItem(cust.get("email") or ""))
 
+            # Sipariş Sayısı
             try:
                 count = customers_db.count_customer_orders(id_value)
             except Exception:  # noqa: BLE001
                 count = 0
             count_item = QTableWidgetItem(str(count))
             count_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.table.setItem(row, 3, count_item)
+            self.table.setItem(row, 4, count_item)
         self.table.setSortingEnabled(True)
 
     # ------------------------------------------------------------------
@@ -149,15 +163,26 @@ class CustomersPanel(QWidget):
         row = self.table.currentRow()
         if row < 0:
             return None
-        item = self.table.item(row, 0)
+        item = self.table.item(row, 1)
         return item.data(Qt.ItemDataRole.UserRole) if item else None
 
     def _selected_customer_ids(self) -> list[str]:
-        """Tüm seçili müşteri ID'lerini döndür."""
-        rows = sorted({idx.row() for idx in self.table.selectedIndexes()})
+        """Tüm seçili müşteri ID'lerini döndür (satır seçimi + checkbox seçimi)."""
         result: list[str] = []
-        for row in rows:
-            item = self.table.item(row, 0)
+        checked_rows: set[int] = set()
+
+        # Checkbox'lardan seçilen satırları bul
+        for row in range(self.table.rowCount()):
+            widget = self.table.cellWidget(row, 0)
+            if widget and isinstance(widget, QCheckBox) and widget.isChecked():
+                checked_rows.add(row)
+
+        # Seçili satırları da ekle
+        selected_rows = {idx.row() for idx in self.table.selectedIndexes()}
+        all_rows = checked_rows | selected_rows
+
+        for row in sorted(all_rows):
+            item = self.table.item(row, 1)
             if item:
                 cid = item.data(Qt.ItemDataRole.UserRole)
                 if cid:

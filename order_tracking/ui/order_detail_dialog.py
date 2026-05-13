@@ -367,8 +367,12 @@ class OrderDetailDialog(QDialog):
 
         self.customer_combo.clear()
         self.customer_combo.addItem("", None)
+        from utils.helpers import normalize_phone as np
         for c in self._customers:
-            label = f"{c.get('name')}  ({c.get('phone', '')})"
+            phone = c.get("phone", "") or ""
+            norm_phone = np(phone) or ""
+            norm_phone_nospace = norm_phone.replace(" ", "")
+            label = f"{c.get('name')}  ({phone}) {norm_phone_nospace}"
             self.customer_combo.addItem(label, c.get("id"))
 
         # Completer'a aynı listeyi ver
