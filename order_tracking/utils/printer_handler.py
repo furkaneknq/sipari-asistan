@@ -42,6 +42,11 @@ class _WinRawPrinter:
     def text(self, txt: str) -> None:
         self._buf.extend(txt.encode("cp857", errors="replace"))
 
+    def _init_turkish(self) -> None:
+        """ESC/POS Türkçe codepage ayarı (CP857)."""
+        self._buf.extend(b"\x1b\x40")       # ESC @ = reset
+        self._buf.extend(b"\x1b\x74\x0c")   # ESC t 12 = CP857 (Turkish)
+
     def cut(self) -> None:
         self._buf.extend(b"\n\n\n\x1d\x56\x00")  # GS V 0 = tam kesim
 
@@ -101,10 +106,10 @@ def test_printer_connection() -> tuple[bool, str]:
 # YARDIMCI FONKSİYONLAR
 # =====================================================================
 
-WIDTH = 32  # 80mm yazıcı karakter genişliği
+WIDTH = 42  # 80mm yazıcı Font A karakter genişliği
 
 
-def _hr(char: str = "─") -> str:
+def _hr(char: str = "-") -> str:
     return char * WIDTH
 
 
@@ -145,9 +150,9 @@ def _wrap(text: str, width: int | None = None) -> list[str]:
 
 def _fmt_currency(amount) -> str:
     try:
-        return f"₺{float(amount):,.0f}".replace(",", ".")
+        return f"{float(amount):,.0f} TL".replace(",", ".")
     except (TypeError, ValueError):
-        return "₺0"
+        return "0 TL"
 
 
 # =====================================================================
@@ -233,15 +238,14 @@ def print_customer_receipt(order_data: dict[str, Any]) -> tuple[bool, str]:
     if printer is None:
         return False, "Yazıcı bulunamadı veya dummy modda."
     try:
-        printer.set(align="center", font="a", bold=True, width=2, height=2)
-        printer.text(order_data.get("business_name", "İŞLETME").upper() + "\n")
+        if hasattr(printer, '_init_turkish'):
+            printer._init_turkish()
         printer.set(align="left", font="a", bold=False, width=1, height=1)
-        # Satır satır yazdır, TOPLAM büyük font
         for line in text.split("\n"):
             if line.startswith("TOPLAM:"):
-                printer.set(bold=True, width=2, height=2)
+                printer.set(bold=True)
                 printer.text(line + "\n")
-                printer.set(bold=False, width=1, height=1)
+                printer.set(bold=False)
             else:
                 printer.text(line + "\n")
         printer.cut()
@@ -261,16 +265,17 @@ def build_preparation_receipt_text(selected_orders: list[dict[str, Any]]) -> str
     now = datetime.now()
 
     lines.append("=" * WIDTH)
-    lines.append(_center("★ HAZIRLANACAK SİPARİŞLER ★"))
+    lines.append(_center("* HAZIRLANACAK SIPARISLER *"))
     lines.append(_center(now.strftime("%d/%m/%Y - %H:%M")))
     if len(selected_orders) > 1:
         lines.append(_center(f"Toplam: {len(selected_orders)} Sipariş"))
     lines.append("=" * WIDTH)
 
-    for order in selected_orders:
+    for idx, order in enumerate(selected_orders):
+        if idx > 0:
+            lines.append(_hr("-"))
         order_no = order.get("order_number", "?")
-        lines.append(f"■ SİPARİŞ #{order_no}")
-        lines.append(_hr())
+        lines.append(f"# SİPARİŞ #{order_no}")
         for item in order.get("items", []):
             name = item.get("name", "")
             qty = item.get("qty", item.get("quantity", 0))
@@ -279,8 +284,8 @@ def build_preparation_receipt_text(selected_orders: list[dict[str, Any]]) -> str
                 qty_s = f"{float(qty):g}"
             except (TypeError, ValueError):
                 qty_s = str(qty)
-            left = f"{name} {qty_s}{unit}"
-            right = "_______"
+            left = f"  {name} {qty_s}{unit}"
+            right = "______"
             lines.append(_two_col(left, right))
 
     lines.append("=" * WIDTH)
@@ -296,6 +301,8 @@ def print_preparation_receipt(selected_orders: list[dict[str, Any]]) -> tuple[bo
     if printer is None:
         return False, "Yazıcı bulunamadı veya dummy modda."
     try:
+        if hasattr(printer, '_init_turkish'):
+            printer._init_turkish()
         printer.set(align="left", font="a", bold=False, width=1, height=1)
         printer.text(text + "\n")
         printer.cut()
@@ -414,6 +421,8 @@ def print_receipt(
     if printer is None:
         return True, "Yazıcı yapılandırılmadı (dummy mod). Sadece önizleme."
     try:
+        if hasattr(printer, '_init_turkish'):
+            printer._init_turkish()
         printer.set(align="left", font="a", bold=False, width=1, height=1)
         printer.text(text + "\n\n\n")
         printer.cut()
