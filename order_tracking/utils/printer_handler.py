@@ -82,7 +82,8 @@ def _get_printer():
             if not name:
                 return None
             return _WinRawPrinter(name)
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        print(f"[YAZICI HATA] _get_printer başarısız: {exc}")
         return None
     return None
 

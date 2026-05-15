@@ -66,6 +66,11 @@ def main() -> int:
     app.setApplicationName(config.APP_NAME)
     app.setApplicationVersion(config.APP_VERSION)
 
+    # Debug: .env ve yazıcı ayarlarını göster
+    print(f"[CONFIG] .env yolu: {config.ENV_PATH}")
+    print(f"[CONFIG] PRINTER_TYPE={config.PRINTER_TYPE}")
+    print(f"[CONFIG] PRINTER_WIN_NAME={config.PRINTER_WIN_NAME}")
+
     # Varsayılan tema (DB'den okumadan önce)
     themes.apply_theme(app, "light")
 
