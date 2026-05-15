@@ -117,7 +117,10 @@ class CustomersPanel(QWidget):
     def refresh(self) -> None:
         search = self.search_input.text().strip()
         try:
-            customers = customers_db.list_customers(search=search)
+            if search:
+                customers = customers_db.list_customers(search=search, limit=200)
+            else:
+                customers = customers_db.list_customers(limit=200)
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "Yükleme Hatası", str(exc))
             return
@@ -147,12 +150,8 @@ class CustomersPanel(QWidget):
             # E-posta
             self.table.setItem(row, 3, QTableWidgetItem(cust.get("email") or ""))
 
-            # Sipariş Sayısı
-            try:
-                count = customers_db.count_customer_orders(id_value)
-            except Exception:  # noqa: BLE001
-                count = 0
-            count_item = QTableWidgetItem(str(count))
+            # Sipariş Sayısı (detayda gösterilir, listede yüklenmez)
+            count_item = QTableWidgetItem("")
             count_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.table.setItem(row, 4, count_item)
         self.table.setSortingEnabled(True)

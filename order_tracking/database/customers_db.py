@@ -11,20 +11,46 @@ from .supabase_client import get_client
 def list_customers(
     search: str = "",
     include_guests: bool = False,
+    limit: int = 0,
 ) -> list[dict[str, Any]]:
     """Müşterileri (opsiyonel arama metniyle) listeler.
 
     include_guests=False (varsayılan): is_guest=true olan kayıtlar
     UI listelerinde görünmesin diye filtrelenir.
+    limit=0: tüm kayıtlar (pagination ile).
     """
     client = get_client()
-    query = client.table("customers").select("*").order("created_at", desc=True)
-    if not include_guests:
-        query = query.eq("is_guest", False)
+
     if search:
-        # isim VEYA telefon içinde geçiyorsa
+        # Arama varsa tek sayfa yeterli (genelde az sonuç)
+        query = client.table("customers").select("*").order("name", desc=False)
+        if not include_guests:
+            query = query.eq("is_guest", False)
         query = query.or_(f"name.ilike.%{search}%,phone.ilike.%{search}%")
-    return query.execute().data or []
+        if limit > 0:
+            query = query.limit(limit)
+        else:
+            query = query.limit(100)  # Arama sonuçlarını sınırla
+        return query.execute().data or []
+
+    # Arama yoksa tüm müşterileri pagination ile çek
+    PAGE_SIZE = 1000
+    all_data: list[dict[str, Any]] = []
+    offset = 0
+    max_records = limit if limit > 0 else 999999
+
+    while len(all_data) < max_records:
+        query = client.table("customers").select("*").order("name", desc=False)
+        if not include_guests:
+            query = query.eq("is_guest", False)
+        query = query.range(offset, offset + PAGE_SIZE - 1)
+        page = query.execute().data or []
+        all_data.extend(page)
+        if len(page) < PAGE_SIZE:
+            break
+        offset += PAGE_SIZE
+
+    return all_data[:max_records] if limit > 0 else all_data
 
 
 def get_customer(customer_id: str) -> dict[str, Any] | None:
