@@ -56,6 +56,14 @@ interface SupabaseApi {
         @Body body: Map<String, String>
     ): RpcResponse
 
+    /** Adrese anlık konum kaydet. */
+    @POST("rest/v1/rpc/courier_save_address_location")
+    suspend fun saveAddressLocation(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Body body: Map<String, String>
+    ): RpcResponse
+
     /** Günlük özet (teslim edilen sipariş sayısı + toplam tutar). */
     @POST("rest/v1/rpc/courier_daily_summary")
     suspend fun dailySummary(

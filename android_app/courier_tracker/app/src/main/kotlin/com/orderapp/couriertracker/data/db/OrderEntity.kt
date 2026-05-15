@@ -57,6 +57,9 @@ data class OrderEntity(
     val customerPhone: String = "",
 
     // Adres bilgileri (denormalize)
+    @ColumnInfo(name = "address_id")
+    val addressId: String? = null,
+
     @ColumnInfo(name = "address_text")
     val addressText: String? = null,
 

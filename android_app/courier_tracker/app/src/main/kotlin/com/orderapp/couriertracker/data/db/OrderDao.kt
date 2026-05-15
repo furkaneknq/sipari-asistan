@@ -56,6 +56,10 @@ interface OrderDao {
     @Query("UPDATE orders SET paid_amount = :paidAmount WHERE id = :orderId")
     suspend fun updatePaidAmount(orderId: String, paidAmount: Double)
 
+    /** Adres konumunu lokal olarak güncelle. */
+    @Query("UPDATE orders SET latitude = :lat, longitude = :lng WHERE id = :orderId")
+    suspend fun updateLocation(orderId: String, lat: Double, lng: Double)
+
     /** Belirtilen ID'ler dışındakileri sil (günü geçmiş temizlik). */
     @Query("DELETE FROM orders WHERE id NOT IN (:keepIds)")
     suspend fun deleteExcept(keepIds: List<String>)

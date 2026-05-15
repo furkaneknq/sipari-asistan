@@ -1,8 +1,10 @@
 package com.orderapp.couriertracker.ui
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -121,7 +123,8 @@ class MainActivity : ComponentActivity() {
                             viewModel = viewModel,
                             onBack = { navController.popBackStack() },
                             onCallPhone = { phone -> requestCallPermission(phone) },
-                            onOpenMap = { order -> openMap(order) }
+                            onOpenMap = { order -> openMap(order) },
+                            onSaveLocation = { order -> saveCurrentLocation(order) }
                         )
                     }
                 }
@@ -191,6 +194,67 @@ class MainActivity : ComponentActivity() {
                 Toast.makeText(this, "Arama uygulaması açılamadı", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    // ─── Konum Kaydet ─────────────────────────────────────────────
+
+    @SuppressLint("MissingPermission")
+    private fun saveCurrentLocation(order: OrderEntity) {
+        val addressId = order.addressId
+        if (addressId == null) {
+            Toast.makeText(this, "Adres ID bulunamadı", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            Toast.makeText(this, "Konum izni verilmemiş", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+
+        // Önce son bilinen konumu dene
+        val lastKnown = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+            ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+
+        if (lastKnown != null && lastKnown.accuracy < 100f) {
+            viewModel.saveAddressLocation(
+                orderId = order.id,
+                addressId = addressId,
+                latitude = lastKnown.latitude,
+                longitude = lastKnown.longitude
+            )
+            Toast.makeText(
+                this,
+                "📍 Konum kaydedildi (%.6f, %.6f)".format(lastKnown.latitude, lastKnown.longitude),
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        // Son konum yoksa tek seferlik güncelleme iste
+        Toast.makeText(this, "GPS konumu alınıyor...", Toast.LENGTH_SHORT).show()
+        locationManager.requestSingleUpdate(
+            LocationManager.GPS_PROVIDER,
+            { location ->
+                viewModel.saveAddressLocation(
+                    orderId = order.id,
+                    addressId = addressId,
+                    latitude = location.latitude,
+                    longitude = location.longitude
+                )
+                runOnUiThread {
+                    Toast.makeText(
+                        this,
+                        "📍 Konum kaydedildi (%.6f, %.6f)".format(location.latitude, location.longitude),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            },
+            null
+        )
     }
 
     // ─── Harita ─────────────────────────────────────────────────────

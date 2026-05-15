@@ -234,6 +234,50 @@ class OrderRepository(
         }
     }
 
+    // ─── Adres Konumu Kaydetme ────────────────────────────────────────
+
+    /**
+     * Müşteri adresine anlık GPS konumu kaydet.
+     * Önce lokale yaz, sonra sunucuya gönder.
+     */
+    suspend fun saveAddressLocation(
+        orderId: String,
+        addressId: String,
+        latitude: Double,
+        longitude: Double
+    ): Result<Boolean> = runCatching {
+        // Lokale yaz (instant UI güncelleme)
+        dao.updateLocation(orderId, latitude, longitude)
+
+        try {
+            val url = prefs.getUrlNow()
+            val key = prefs.getKeyNow()
+            val courierId = prefs.getCourierIdNow()
+
+            val resp = ApiClient.api(url).saveAddressLocation(
+                apiKey = key,
+                auth = "Bearer $key",
+                body = mapOf(
+                    "p_address_id" to addressId,
+                    "p_courier_id" to courierId,
+                    "p_latitude" to latitude.toString(),
+                    "p_longitude" to longitude.toString()
+                )
+            )
+
+            if (resp.success) {
+                Log.i(TAG, "Adres konumu kaydedildi: $addressId → $latitude,$longitude")
+                true
+            } else {
+                Log.w(TAG, "Adres konumu kaydedilemedi: ${resp.message}")
+                false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Adres konumu kaydetme hata", e)
+            false
+        }
+    }
+
     // ─── Konum Güncelleme ───────────────────────────────────────────
 
     suspend fun updateLocation(latitude: Double, longitude: Double): Result<Unit> = runCatching {
@@ -307,6 +351,7 @@ class OrderRepository(
         updatedAt = updatedAt,
         customerName = customer?.name ?: "",
         customerPhone = customer?.phone ?: "",
+        addressId = address?.id,
         addressText = address?.addressText,
         latitude = address?.latitude,
         longitude = address?.longitude,

@@ -108,6 +108,15 @@ class MainViewModel : ViewModel() {
         }
     }
 
+    fun saveAddressLocation(orderId: String, addressId: String, latitude: Double, longitude: Double) {
+        viewModelScope.launch {
+            repo.saveAddressLocation(orderId, addressId, latitude, longitude)
+                .onFailure { e ->
+                    errorMessage = "Konum kaydedilemedi: ${e.message}"
+                }
+        }
+    }
+
     fun clearError() { errorMessage = null }
 
     fun logout() {

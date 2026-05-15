@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.Button
@@ -71,7 +72,8 @@ fun OrderDetailScreen(
     viewModel: MainViewModel,
     onBack: () -> Unit,
     onCallPhone: (String) -> Unit,
-    onOpenMap: (OrderEntity) -> Unit
+    onOpenMap: (OrderEntity) -> Unit,
+    onSaveLocation: (OrderEntity) -> Unit = {}
 ) {
     val order by viewModel.observeOrder(orderId).collectAsState()
 
@@ -182,6 +184,21 @@ fun OrderDetailScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.error
                         )
+                        // Konum Kaydet butonu — adres ID varsa göster
+                        if (o.addressId != null) {
+                            Spacer(Modifier.height(8.dp))
+                            Button(
+                                onClick = { onSaveLocation(o) },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.tertiary
+                                )
+                            ) {
+                                Icon(Icons.Default.LocationOn, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("📍 Anlık Konumu Kaydet")
+                            }
+                        }
                     }
                     if ((o.latitude != null && o.longitude != null) || !o.addressText.isNullOrBlank()) {
                         Spacer(Modifier.height(8.dp))
