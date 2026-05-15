@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from PyQt6.QtCore import QDate, Qt, QTime
+from PyQt6.QtCore import QDate, Qt, QTime, QTimer
 from PyQt6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -354,37 +354,25 @@ class OrderDetailDialog(QDialog):
     # ==================================================================
     def _load_data(self) -> None:
         try:
-            # Edit modunda misafir müşteriler de listede olsun ki
-            # daha önce 'tek seferlik müşteri' ile açılan siparişler düzenlenebilsin.
-            self._customers = customers_db.list_customers(
-                include_guests=self.is_edit
-            )
             self._categories = products_db.list_categories()
             self._couriers = couriers_db.list_couriers()
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "Veri Hatası", str(exc))
             return
 
+        # Müşteri combo: boş başla, yazarak aranır (24K kaydı yükleme)
+        self._customers = []
         self.customer_combo.clear()
         self.customer_combo.addItem("", None)
-        from utils.helpers import normalize_phone as np
-        for c in self._customers:
-            phone = c.get("phone", "") or ""
-            norm_phone = np(phone) or ""
-            norm_phone_nospace = norm_phone.replace(" ", "")
-            label = f"{c.get('name')}  ({phone}) {norm_phone_nospace}"
-            self.customer_combo.addItem(label, c.get("id"))
 
-        # Completer'a aynı listeyi ver
-        completer = self.customer_combo.completer()
-        if completer is not None:
-            from PyQt6.QtCore import QStringListModel
-
-            items = [
-                self.customer_combo.itemText(i)
-                for i in range(self.customer_combo.count())
-            ]
-            completer.setModel(QStringListModel(items))
+        # Yazma olayını dinle — lazy search
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(300)  # 300ms debounce
+        self._search_timer.timeout.connect(self._search_customers)
+        self.customer_combo.lineEdit().textEdited.connect(
+            lambda _: self._search_timer.start()
+        )
 
         self.courier_combo.clear()
         self.courier_combo.addItem("-- Atanmadı --", None)
@@ -396,9 +384,7 @@ class OrderDetailDialog(QDialog):
         if self.is_edit and self.order_id:
             self._load_existing_order()
         elif self.prefill_customer_id:
-            idx = self.customer_combo.findData(self.prefill_customer_id)
-            if idx >= 0:
-                self.customer_combo.setCurrentIndex(idx)
+            self._prefill_customer(self.prefill_customer_id)
         elif self._initial_guest_mode:
             # Misafir sipariş modu: checkbox'ı işaretle, telefon prefill yap
             self.guest_check.setChecked(True)
@@ -406,6 +392,62 @@ class OrderDetailDialog(QDialog):
                 from utils.helpers import format_phone
                 pretty = format_phone(self._prefill_phone) or self._prefill_phone
                 self.guest_phone_input.setText(pretty)
+
+    def _search_customers(self) -> None:
+        """Combo'da yazılan metne göre müşteri ara (debounced)."""
+        text = self.customer_combo.lineEdit().text().strip()
+        if len(text) < 2:
+            return
+
+        try:
+            results = customers_db.list_customers(search=text, limit=50)
+        except Exception:  # noqa: BLE001
+            return
+
+        # Mevcut seçimi koru
+        current_id = self.customer_combo.currentData()
+
+        self.customer_combo.blockSignals(True)
+        self.customer_combo.clear()
+        self.customer_combo.addItem("", None)
+
+        from utils.helpers import normalize_phone as np
+        self._customers = results
+        for c in results:
+            phone = c.get("phone", "") or ""
+            norm_phone = np(phone) or ""
+            norm_phone_nospace = norm_phone.replace(" ", "")
+            label = f"{c.get('name')}  ({phone}) {norm_phone_nospace}"
+            self.customer_combo.addItem(label, c.get("id"))
+
+        self.customer_combo.blockSignals(False)
+
+        # Önceki seçimi geri yükle varsa
+        if current_id:
+            idx = self.customer_combo.findData(current_id)
+            if idx >= 0:
+                self.customer_combo.setCurrentIndex(idx)
+
+        # Popup'u göster
+        self.customer_combo.lineEdit().setText(text)
+        self.customer_combo.showPopup()
+
+    def _prefill_customer(self, customer_id: str) -> None:
+        """Belirli bir müşteriyi combo'ya ekleyip seç."""
+        try:
+            cust = customers_db.get_customer(customer_id)
+        except Exception:  # noqa: BLE001
+            return
+        if not cust:
+            return
+        from utils.helpers import normalize_phone as np
+        phone = cust.get("phone", "") or ""
+        norm_phone = np(phone) or ""
+        norm_phone_nospace = norm_phone.replace(" ", "")
+        label = f"{cust.get('name')}  ({phone}) {norm_phone_nospace}"
+        self._customers = [cust]
+        self.customer_combo.addItem(label, cust.get("id"))
+        self.customer_combo.setCurrentIndex(1)  # İlk gerçek item
 
     def _build_product_tabs(self) -> None:
         self.product_tabs.clear()

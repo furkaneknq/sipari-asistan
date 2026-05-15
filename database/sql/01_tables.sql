@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS public.orders (
     courier_id      UUID REFERENCES public.couriers(id) ON DELETE SET NULL,
     status          TEXT NOT NULL DEFAULT 'new'
                     CHECK (status IN ('new','preparing','on_way','delivered','cancelled')),
-    order_date      DATE NOT NULL DEFAULT CURRENT_DATE,
+    order_date      DATE NOT NULL DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Istanbul')::date,
     delivery_date   DATE,
     delivery_time   TIME,
     total_amount    DECIMAL(10,2) NOT NULL DEFAULT 0,

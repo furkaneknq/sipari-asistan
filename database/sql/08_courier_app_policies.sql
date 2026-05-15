@@ -193,7 +193,7 @@ BEGIN
         JOIN public.customers c ON c.id = o.customer_id
         LEFT JOIN public.customer_addresses ca ON ca.id = o.address_id
         WHERE o.courier_id = p_courier_id
-          AND o.order_date = CURRENT_DATE
+          AND o.order_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Istanbul')::date
         ORDER BY
             CASE o.status
                 WHEN 'new' THEN 1
@@ -228,7 +228,7 @@ BEGIN
     INTO v_delivered_count, v_total_amount, v_paid_amount
     FROM public.orders
     WHERE courier_id = p_courier_id
-      AND order_date = CURRENT_DATE
+      AND order_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Istanbul')::date
       AND status = 'delivered';
 
     RETURN json_build_object(

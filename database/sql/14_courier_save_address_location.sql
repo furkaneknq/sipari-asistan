@@ -20,7 +20,7 @@ BEGIN
     JOIN public.orders o ON o.address_id = ca.id
     WHERE ca.id = p_address_id
       AND o.courier_id = p_courier_id
-      AND o.order_date = CURRENT_DATE
+      AND o.order_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Istanbul')::date
     LIMIT 1;
 
     IF v_addr IS NULL THEN
