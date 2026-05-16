@@ -107,7 +107,7 @@ def test_printer_connection() -> tuple[bool, str]:
 # YARDIMCI FONKSİYONLAR
 # =====================================================================
 
-WIDTH = 42  # 80mm yazıcı Font A karakter genişliği
+WIDTH = 48  # 80mm yazıcı Font A karakter genişliği
 
 
 def _hr(char: str = "-") -> str:
@@ -232,6 +232,30 @@ def build_customer_receipt_text(order_data: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _send_text(printer, text: str) -> None:
+    """Türkçe karakterleri doğru göndermek için ortak yazdırma fonksiyonu.
+
+    - _WinRawPrinter: zaten _init_turkish() ile CP857 ayarlı, text() CP857 encode eder.
+    - escpos (USB/Network): _raw() ile CP857 codepage set edip bytes gönderir.
+    """
+    if isinstance(printer, _WinRawPrinter):
+        # Windows: _init_turkish zaten çağrıldı, text() CP857 encode eder
+        printer.text(text)
+    else:
+        # python-escpos: raw bytes gönder (kendi encoding'ini bypass et)
+        printer._raw(text.encode("cp857", errors="replace"))
+
+
+def _init_printer(printer) -> None:
+    """Yazıcıyı başlat: reset + CP857 codepage ayarla."""
+    if isinstance(printer, _WinRawPrinter):
+        printer._init_turkish()
+    else:
+        # escpos (USB/Network): ESC @ reset + ESC t 12 = CP857
+        printer._raw(b"\x1b\x40")       # reset
+        printer._raw(b"\x1b\x74\x0c")   # CP857 Turkish codepage
+
+
 def print_customer_receipt(order_data: dict[str, Any]) -> tuple[bool, str]:
     """Müşteri fişini yazıcıya gönderir."""
     text = build_customer_receipt_text(order_data)
@@ -239,16 +263,9 @@ def print_customer_receipt(order_data: dict[str, Any]) -> tuple[bool, str]:
     if printer is None:
         return False, "Yazıcı bulunamadı veya dummy modda."
     try:
-        if hasattr(printer, '_init_turkish'):
-            printer._init_turkish()
-        printer.set(align="left", font="a", bold=False, width=1, height=1)
+        _init_printer(printer)
         for line in text.split("\n"):
-            if line.startswith("TOPLAM:"):
-                printer.set(bold=True)
-                printer.text(line + "\n")
-                printer.set(bold=False)
-            else:
-                printer.text(line + "\n")
+            _send_text(printer, line + "\n")
         printer.cut()
         printer.close()
         return True, "Müşteri fişi yazdırıldı."
@@ -302,10 +319,9 @@ def print_preparation_receipt(selected_orders: list[dict[str, Any]]) -> tuple[bo
     if printer is None:
         return False, "Yazıcı bulunamadı veya dummy modda."
     try:
-        if hasattr(printer, '_init_turkish'):
-            printer._init_turkish()
-        printer.set(align="left", font="a", bold=False, width=1, height=1)
-        printer.text(text + "\n")
+        _init_printer(printer)
+        for line in text.split("\n"):
+            _send_text(printer, line + "\n")
         printer.cut()
         printer.close()
         return True, "Hazırlama fişi yazdırıldı."
@@ -360,7 +376,7 @@ def build_receipt_text(
     order: dict[str, Any],
     items: list[dict[str, Any]],
     settings: dict[str, str],
-    width: int = 32,
+    width: int = 48,
 ) -> str:
     """Eski API — build_customer_receipt_text'e yönlendirir."""
     from utils.helpers import format_currency, format_phone
@@ -422,10 +438,10 @@ def print_receipt(
     if printer is None:
         return True, "Yazıcı yapılandırılmadı (dummy mod). Sadece önizleme."
     try:
-        if hasattr(printer, '_init_turkish'):
-            printer._init_turkish()
-        printer.set(align="left", font="a", bold=False, width=1, height=1)
-        printer.text(text + "\n\n\n")
+        _init_printer(printer)
+        for line in text.split("\n"):
+            _send_text(printer, line + "\n")
+        _send_text(printer, "\n\n")
         printer.cut()
         printer.close()
         return True, "Adisyon yazdırıldı."

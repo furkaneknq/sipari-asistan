@@ -41,7 +41,7 @@ class ReceiptPreviewDialog(QDialog):
         self.items = items
         self.settings = settings
 
-        text = build_receipt_text(order, items, settings, width=42)
+        text = build_receipt_text(order, items, settings, width=48)
 
         self.preview = QPlainTextEdit()
         self.preview.setPlainText(text)
