@@ -34,7 +34,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from database import couriers_db, orders_db
+from database import couriers_db, customers_db, orders_db, products_db
+from ui.order_detail_dialog import _ClearOnZeroSpinBox
 from database.orders_db import STATUS_DELIVERED, STATUS_NEW
 from utils.helpers import format_currency, format_phone, parse_iso_datetime
 
@@ -652,7 +653,7 @@ class OrdersPanel(QWidget):
     def _make_paid_spin(
         self, order_id: str, paid: float, total: float, row: int
     ) -> QDoubleSpinBox:
-        spin = QDoubleSpinBox()
+        spin = _ClearOnZeroSpinBox()
         spin.setDecimals(2)
         spin.setMaximum(999_999.99)
         spin.setSingleStep(1.0)
@@ -763,7 +764,7 @@ class OrdersPanel(QWidget):
     def _make_amount_spin(
         self, order_id: str, amount: float, row: int
     ) -> QDoubleSpinBox:
-        spin = QDoubleSpinBox()
+        spin = _ClearOnZeroSpinBox()
         spin.setDecimals(2)
         spin.setMaximum(999_999.99)
         spin.setSingleStep(1.0)

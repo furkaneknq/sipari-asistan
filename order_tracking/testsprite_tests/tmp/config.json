@@ -1,0 +1,25 @@
+{
+  "status": "commited",
+  "type": "backend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:5000",
+  "backendAuthType": "API key",
+  "backendApiKey": "https://xgvlgmikxchpttydtelb.supabase.co",
+  "backendApiValue": "sb_publishable_PVh2wYSRzx9rjoxFPDAn-Q_oernzdtT",
+  "executionArgs": {
+    "projectName": "order_tracking",
+    "projectPath": "/home/furkan/Masaüstü/Proje/order_tracking",
+    "testIds": [
+      "TC002",
+      "TC003",
+      "TC004",
+      "TC005"
+    ],
+    "additionalInstruction": "The test server runs on localhost:5000 and translates /rest/v1/{table} to internal routes. Use PostgREST-style params: ?id=eq.{uuid} for filtering. POST returns 201 on success. PATCH returns 200. DELETE returns 200. GET with ?id=eq.{uuid} returns a JSON array. For products: POST /rest/v1/products with {name, price, unit, category_id}. For categories: POST /rest/v1/categories with {name, color, sort_order}. For couriers: POST /rest/v1/couriers with {name, phone, is_active}. For orders: POST /rest/v1/orders with {customer_id, address_id, items: [{product_id, quantity, unit, unit_price}], payment_method, status}. For addresses: POST /rest/v1/customer_addresses with {customer_id, title, address_text, latitude, longitude, is_default}. PATCH /rest/v1/orders?id=eq.{id} with {status} to update status. PATCH /rest/v1/orders/courier?id=eq.{id} with {courier_id} to assign courier.",
+    "serverMode": "production",
+    "envs": {
+      "API_KEY": "sk-user-fczPKM2K5zgcvxsTPUGngLt48nldHHJjmtYIh8vSb6GEq5a1rFPwndHmoS6xtonNGIE-tAilwswwjetCI51dsOmgK15qAQiZX_YLgpCqLwUPdvl8I1K46XnDmyE-s5GrQyE"
+    }
+  },
+  "serverPort": 40295
+}

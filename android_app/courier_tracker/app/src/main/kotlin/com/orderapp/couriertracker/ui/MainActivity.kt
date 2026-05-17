@@ -8,6 +8,7 @@ import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.app.AlertDialog
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -220,17 +221,7 @@ class MainActivity : ComponentActivity() {
             ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
 
         if (lastKnown != null && lastKnown.accuracy < 100f) {
-            viewModel.saveAddressLocation(
-                orderId = order.id,
-                addressId = addressId,
-                latitude = lastKnown.latitude,
-                longitude = lastKnown.longitude
-            )
-            Toast.makeText(
-                this,
-                "📍 Konum kaydedildi (%.6f, %.6f)".format(lastKnown.latitude, lastKnown.longitude),
-                Toast.LENGTH_LONG
-            ).show()
+            showConfirmLocationDialog(order, addressId, lastKnown.latitude, lastKnown.longitude)
             return
         }
 
@@ -239,22 +230,39 @@ class MainActivity : ComponentActivity() {
         locationManager.requestSingleUpdate(
             LocationManager.GPS_PROVIDER,
             { location ->
-                viewModel.saveAddressLocation(
-                    orderId = order.id,
-                    addressId = addressId,
-                    latitude = location.latitude,
-                    longitude = location.longitude
-                )
                 runOnUiThread {
-                    Toast.makeText(
-                        this,
-                        "📍 Konum kaydedildi (%.6f, %.6f)".format(location.latitude, location.longitude),
-                        Toast.LENGTH_LONG
-                    ).show()
+                    showConfirmLocationDialog(order, addressId, location.latitude, location.longitude)
                 }
             },
             null
         )
+    }
+
+    private fun showConfirmLocationDialog(
+        order: OrderEntity,
+        addressId: String,
+        latitude: Double,
+        longitude: Double
+    ) {
+        AlertDialog.Builder(this)
+            .setTitle("📍 Konum Kaydet")
+            .setMessage(
+                "Anlık konum bu adrese kaydedilsin mi?\n\n" +
+                "Müşteri: ${order.customerName}\n" +
+                "Koordinatlar: %.6f, %.6f".format(latitude, longitude)
+            )
+            .setPositiveButton("Evet") { _, _ ->
+                viewModel.saveAddressLocation(
+                    orderId = order.id,
+                    addressId = addressId,
+                    latitude = latitude,
+                    longitude = longitude
+                )
+                Toast.makeText(this, "✅ Konum kaydedildi", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Hayır", null)
+            .setCancelable(true)
+            .show()
     }
 
     // ─── Harita ─────────────────────────────────────────────────────

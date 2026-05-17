@@ -46,6 +46,20 @@ from utils import quick_notes as quick_notes_store
 from utils.helpers import fit_to_screen, format_currency
 
 
+class _ClearOnZeroSpinBox(QDoubleSpinBox):
+    """Değer 0 iken odaklanınca kutuyu boşaltır — tutar girişini kolaylaştırır."""
+
+    def focusInEvent(self, event):  # noqa: N802
+        super().focusInEvent(event)
+        if self.value() == 0.0:
+            self.lineEdit().clear()
+
+    def textFromValue(self, value: float) -> str:  # noqa: N802
+        if value == 0.0 and self.hasFocus():
+            return ""
+        return super().textFromValue(value)
+
+
 class OrderDetailDialog(QDialog):
     def __init__(
         self,
@@ -213,7 +227,7 @@ class OrderDetailDialog(QDialog):
         payment_row.addWidget(self.payment_iban)
         payment_row.addStretch()
 
-        self.payment_amount = QDoubleSpinBox()
+        self.payment_amount = _ClearOnZeroSpinBox()
         self.payment_amount.setDecimals(2)
         self.payment_amount.setMaximum(999_999.99)
         self.payment_amount.setSingleStep(1.0)
