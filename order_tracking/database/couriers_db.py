@@ -71,6 +71,31 @@ def count_active_orders(courier_id: str) -> int:
     return res.count or 0
 
 
+def batch_count_active_orders(courier_ids: list[str]) -> dict[str, int]:
+    """Tüm kuryelerin aktif sipariş sayısını TEK sorguda döndürür.
+
+    Dönen format: {courier_id: count}
+    N+1 sorgu problemini ortadan kaldırır.
+    """
+    if not courier_ids:
+        return {}
+    res = (
+        get_client()
+        .table("orders")
+        .select("courier_id")
+        .in_("courier_id", courier_ids)
+        .in_("status", ["new", "preparing", "on_way"])
+        .execute()
+    )
+    rows = res.data or []
+    result: dict[str, int] = {cid: 0 for cid in courier_ids}
+    for r in rows:
+        cid = r.get("courier_id")
+        if cid and cid in result:
+            result[cid] += 1
+    return result
+
+
 def list_courier_orders(courier_id: str) -> list[dict[str, Any]]:
     """Kuryeye atanmış güncel siparişler (en yeni üstte)."""
     res = (

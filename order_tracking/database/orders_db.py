@@ -82,6 +82,37 @@ def list_orders(
     return rows
 
 
+def list_orders_by_customer(customer_id: str, limit: int = 10) -> list[dict[str, Any]]:
+    """Bir müşterinin son siparişlerini döndürür (en yeniden eskiye)."""
+    res = (
+        get_client()
+        .table("orders")
+        .select(
+            "id,order_number,order_date,delivery_time,total_amount,status,"
+            "created_at,customer_addresses(address_text)"
+        )
+        .eq("customer_id", customer_id)
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return res.data or []
+
+
+def count_today_orders(customer_id: str) -> int:
+    """Müşterinin bugünkü sipariş sayısını döndürür."""
+    today = date.today().isoformat()
+    res = (
+        get_client()
+        .table("orders")
+        .select("id", count="exact")
+        .eq("customer_id", customer_id)
+        .eq("order_date", today)
+        .execute()
+    )
+    return res.count or 0
+
+
 def order_items_summary(order_id: str) -> dict[str, float]:
     """Bir siparişin kalemlerinden toplam adet ve tutar hesaplar."""
     res = (
@@ -95,6 +126,34 @@ def order_items_summary(order_id: str) -> dict[str, float]:
     total_qty = sum(float(r.get("quantity") or 0) for r in rows)
     total_amt = sum(float(r.get("total_price") or 0) for r in rows)
     return {"quantity": total_qty, "total": total_amt}
+
+
+def batch_order_items_summary(order_ids: list[str]) -> dict[str, dict[str, float]]:
+    """Birden çok siparişin kalem özetlerini TEK sorguda döndürür.
+
+    Dönen format: {order_id: {"quantity": float, "total": float}}
+    N+1 sorgu problemini ortadan kaldırır.
+    """
+    if not order_ids:
+        return {}
+    res = (
+        get_client()
+        .table("order_items")
+        .select("order_id,quantity,total_price")
+        .in_("order_id", order_ids)
+        .execute()
+    )
+    rows = res.data or []
+    result: dict[str, dict[str, float]] = {}
+    for r in rows:
+        oid = r.get("order_id")
+        if not oid:
+            continue
+        if oid not in result:
+            result[oid] = {"quantity": 0.0, "total": 0.0}
+        result[oid]["quantity"] += float(r.get("quantity") or 0)
+        result[oid]["total"] += float(r.get("total_price") or 0)
+    return result
 
 
 def mark_delivered(order_id: str) -> dict[str, Any]:

@@ -97,6 +97,7 @@ class OrdersPanel(QWidget):
         self._current_orders: list[dict[str, Any]] = []
         self._auto_refresh = True
         self._courier_filter: str | None = None  # None=Tümü, "__none__"=Atanmamış, uuid=spesifik kurye
+        self._syncing_selection = False  # checkbox ↔ satır seçim senkronizasyon kilidi
 
         self._build_ui()
         self.refresh()
@@ -260,9 +261,11 @@ class OrdersPanel(QWidget):
                 "Durum",
             ]
         )
+        # Checkbox sütununu dar tut
         self.orders_table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.ResizeToContents
+            0, QHeaderView.ResizeMode.Fixed
         )
+        self.orders_table.setColumnWidth(0, 36)
         self.orders_table.horizontalHeader().setSectionResizeMode(
             self.COL_ADDRESS, QHeaderView.ResizeMode.Stretch
         )
@@ -272,6 +275,8 @@ class OrdersPanel(QWidget):
         self.orders_table.setSelectionMode(
             QTableWidget.SelectionMode.ExtendedSelection
         )
+        # Checkbox dışına tıklayınca seçimi sıfırlamayı engelle
+        self.orders_table.mousePressEvent = self._table_mouse_press
         self.orders_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.orders_table.setAlternatingRowColors(True)
         self.orders_table.setSortingEnabled(True)
@@ -468,9 +473,26 @@ class OrdersPanel(QWidget):
         self.list_title.setText(f"Sipariş Listesi  (Kayıt: {len(orders)})")
 
     def _populate_orders_table(self, orders: list[dict[str, Any]]) -> None:
+        # Seçili sipariş ID'lerini kaydet (refresh sonrası geri yükle)
+        _prev_selected_ids: set[str] = set()
+        for idx in self.orders_table.selectedIndexes():
+            item = self.orders_table.item(idx.row(), self.COL_NUMBER)
+            if item:
+                oid = item.data(Qt.ItemDataRole.UserRole)
+                if oid:
+                    _prev_selected_ids.add(oid)
+
         # Filtreleme (UI tarafında, hızlı)
         filtered = self._apply_local_filters(orders)
 
+        # Batch kalem özetleri — N+1 sorgu yerine tek sorgu
+        order_ids = [o.get("id") for o in filtered if o.get("id")]
+        try:
+            items_summary = orders_db.batch_order_items_summary(order_ids)
+        except Exception:  # noqa: BLE001
+            items_summary = {}
+
+        self.orders_table.setUpdatesEnabled(False)
         self.orders_table.setSortingEnabled(False)
         self.orders_table.blockSignals(True)
         self.orders_table.setRowCount(0)
@@ -486,14 +508,16 @@ class OrdersPanel(QWidget):
             customer = order.get("customers") or {}
             courier = order.get("couriers") or {}
 
-            # Checkbox (ortalanmış)
+            # Checkbox — satır seçimi ile senkron
             checkbox = QCheckBox()
             checkbox.setChecked(False)
+            checkbox.toggled.connect(lambda checked, r=row: self._on_checkbox_toggled(r, checked))
             chk_wrapper = QWidget()
             chk_layout = QHBoxLayout(chk_wrapper)
             chk_layout.addWidget(checkbox)
             chk_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            chk_layout.setContentsMargins(0, 0, 0, 0)
+            chk_layout.setContentsMargins(2, 0, 2, 0)
+            chk_layout.setSpacing(0)
             self.orders_table.setCellWidget(row, self.COL_CHECK, chk_wrapper)
 
             # S.No (sayısal sıralanabilir)
@@ -555,12 +579,9 @@ class OrdersPanel(QWidget):
             payment = PAYMENT_LABELS.get(order.get("payment_method"), "-")
             self.orders_table.setItem(row, self.COL_PAYMENT, QTableWidgetItem(payment))
 
-            # Adet — toplam miktar (order_items_summary)
-            try:
-                summary = orders_db.order_items_summary(order.get("id"))
-                qty = summary.get("quantity", 0)
-            except Exception:  # noqa: BLE001
-                qty = 0
+            # Adet — toplam miktar (batch'ten oku, N+1 yok)
+            summary = items_summary.get(order.get("id"), {})
+            qty = summary.get("quantity", 0)
             qty_item = NumericItem(self._format_qty(qty), float(qty))
             qty_item.setTextAlignment(
                 Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
@@ -609,6 +630,7 @@ class OrdersPanel(QWidget):
 
         self.orders_table.blockSignals(False)
         self.orders_table.setSortingEnabled(True)
+        self.orders_table.setUpdatesEnabled(True)
 
         # Toplam kutuları
         self.summary_count.setText(str(len(filtered)))
@@ -618,9 +640,34 @@ class OrdersPanel(QWidget):
 
         # Sütun genişlikleri
         self.orders_table.resizeColumnsToContents()
+        # Checkbox sütununu dar tut (resizeColumnsToContents sıfırlar)
+        self.orders_table.horizontalHeader().setSectionResizeMode(
+            self.COL_CHECK, QHeaderView.ResizeMode.Fixed
+        )
+        self.orders_table.setColumnWidth(self.COL_CHECK, 36)
         self.orders_table.horizontalHeader().setSectionResizeMode(
             self.COL_ADDRESS, QHeaderView.ResizeMode.Stretch
         )
+
+        # Önceki seçimi geri yükle
+        if _prev_selected_ids:
+            self._syncing_selection = True
+            model = self.orders_table.selectionModel()
+            for row in range(self.orders_table.rowCount()):
+                item = self.orders_table.item(row, self.COL_NUMBER)
+                if item and item.data(Qt.ItemDataRole.UserRole) in _prev_selected_ids:
+                    if model:
+                        idx = self.orders_table.model().index(row, 0)
+                        model.select(
+                            idx,
+                            model.SelectionFlag.Select | model.SelectionFlag.Rows,
+                        )
+                    wrapper = self.orders_table.cellWidget(row, self.COL_CHECK)
+                    if wrapper:
+                        cb = wrapper.findChild(QCheckBox)
+                        if cb:
+                            cb.setChecked(True)
+            self._syncing_selection = False
 
         # Detay tablosunu temizle
         self.items_table.setRowCount(0)
@@ -840,23 +887,11 @@ class OrdersPanel(QWidget):
         return next((o for o in self._current_orders if o.get("id") == order_id), None)
 
     def _selected_orders(self) -> list[dict[str, Any]]:
-        """Tüm seçili siparişleri döndür (satır seçimi + checkbox seçimi)."""
+        """Tüm seçili siparişleri döndür (satır seçimi = checkbox seçimi, senkron)."""
         result: list[dict[str, Any]] = []
-        checked_rows: set[int] = set()
-
-        # Checkbox'lardan seçilen satırları bul
-        for row in range(self.orders_table.rowCount()):
-            wrapper = self.orders_table.cellWidget(row, self.COL_CHECK)
-            if wrapper:
-                cb = wrapper.findChild(QCheckBox)
-                if cb and cb.isChecked():
-                    checked_rows.add(row)
-
-        # Seçili satırları da ekle
         selected_rows = {idx.row() for idx in self.orders_table.selectedIndexes()}
-        all_rows = checked_rows | selected_rows
 
-        for row in sorted(all_rows):
+        for row in sorted(selected_rows):
             item = self.orders_table.item(row, self.COL_NUMBER)
             if not item:
                 continue
@@ -866,7 +901,59 @@ class OrdersPanel(QWidget):
                 result.append(order)
         return result
 
+    # ------------------------------------------------------------------
+    # Checkbox ↔ satır seçimi senkronizasyonu
+    # ------------------------------------------------------------------
+    def _on_checkbox_toggled(self, row: int, checked: bool) -> None:
+        """Checkbox tıklanınca ilgili satırın seçim durumunu güncelle."""
+        if self._syncing_selection:
+            return
+        self._syncing_selection = True
+        try:
+            model = self.orders_table.selectionModel()
+            if model:
+                flag = model.SelectionFlag.Select if checked else model.SelectionFlag.Deselect
+                flag |= model.SelectionFlag.Rows
+                idx = self.orders_table.model().index(row, 0)
+                model.select(idx, flag)
+            # Focus tabloya ver — seçim rengi ancak focus varken görünür
+            self.orders_table.setFocus()
+        finally:
+            self._syncing_selection = False
+
+    def _table_mouse_press(self, event) -> None:
+        """Checkbox sütunu dışına tıklayınca mevcut seçimi korur.
+
+        Boş alana tıklama seçimi sıfırlamaz. Veri satırına normal tıklama
+        tek-seçim yapar; Ctrl/Shift ile çoklu seçim korunur.
+        """
+        from PyQt6.QtWidgets import QAbstractItemView
+        idx = self.orders_table.indexAt(event.pos())
+        if not idx.isValid():
+            # Boş alana tıklama — seçimi koru, hiçbir şey yapma
+            return
+        # Checkbox sütunu: normal QTableWidget davranışı (widget zaten handler'a sahip)
+        if idx.column() == self.COL_CHECK:
+            QTableWidget.mousePressEvent(self.orders_table, event)
+            return
+        # Diğer sütunlar: varsayılan davranış (Ctrl/Shift destekli satır seçimi)
+        QTableWidget.mousePressEvent(self.orders_table, event)
+
     def _on_order_selected(self) -> None:
+        """Satır seçimi değişince checkbox'ları senkronize et + detay göster."""
+        if not self._syncing_selection:
+            self._syncing_selection = True
+            try:
+                selected_rows = {idx.row() for idx in self.orders_table.selectedIndexes()}
+                for row in range(self.orders_table.rowCount()):
+                    wrapper = self.orders_table.cellWidget(row, self.COL_CHECK)
+                    if wrapper:
+                        cb = wrapper.findChild(QCheckBox)
+                        if cb:
+                            cb.setChecked(row in selected_rows)
+            finally:
+                self._syncing_selection = False
+
         orders = self._selected_orders()
         if not orders:
             self.items_table.setRowCount(0)

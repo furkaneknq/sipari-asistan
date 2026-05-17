@@ -141,7 +141,7 @@ class MainWindow(QMainWindow):
     # Realtime listener
     # ==================================================================
     def _start_listener(self) -> None:
-        self.listener = RealtimeListener(poll_interval_seconds=2.0)
+        self.listener = RealtimeListener(poll_interval_seconds=10.0)
         self.listener.incoming_call_received.connect(self._on_incoming_call)
         self.listener.orders_changed.connect(self._on_orders_changed)
         self.listener.customers_changed.connect(self._on_customers_changed)
@@ -214,11 +214,35 @@ class MainWindow(QMainWindow):
         except Exception:  # noqa: BLE001
             pass
 
+    # Aynı anda ekranda bulunabilecek maksimum popup sayısı
+    _MAX_POPUPS = 3
+
     def _on_incoming_call(self, call: dict[str, Any]) -> None:
         """Yeni gelen arama → popup göster + Arama Geçmişi panelini yenile."""
         self._last_call_data = call
+
+        # Aynı numaradan zaten açık popup varsa tekrar açma
+        phone = call.get("phone_number") or call.get("phone") or ""
+        if phone:
+            for p in self._popups:
+                existing_phone = (
+                    p.call_data.get("phone_number")
+                    or p.call_data.get("phone")
+                    or ""
+                )
+                if existing_phone == phone:
+                    # Mevcut popup'ı öne getir, yeni popup açma
+                    p.raise_()
+                    return
+
         # Bildirim sesi çal
         self._play_call_notification_sound()
+
+        # Popup limiti: en fazla _MAX_POPUPS açık olabilir, fazlaysa en eskiyi kapat
+        while len(self._popups) >= self._MAX_POPUPS:
+            oldest = self._popups[0]
+            oldest._close(unanswered=True)
+
         # Popup top-level olarak oluşturuluyor; referansı listeyle koruyoruz.
         popup = IncomingCallPopup(call, parent=self)
         popup.setStyleSheet(self.styleSheet())  # Tema uygula (top-level olduğu için inherit etmez)
@@ -229,20 +253,22 @@ class MainWindow(QMainWindow):
 
         self._popups.append(popup)
         # Windows'ta cascade pozisyonu önlemek için show()'dan ÖNCE konumlandır.
-        # Popup constructor'da resize(360, 220) çağrıldığı için geometri belli.
         self._reposition_popups()
         popup.show()
         popup.raise_()
-        popup.activateWindow()
+        # Modal dialog (sipariş oluşturma vb.) açıkken focus çalma → donma riski
+        if not QApplication.activeModalWidget():
+            popup.activateWindow()
         # Windows'ta bazen show() sonrası WM final geometriyi commit ettikten sonra
         # tekrar konum ayarı gerekebilir (event loop bir kez dönsün).
         QTimer.singleShot(0, self._reposition_popups)
 
         # Arama geçmişi panelini yenile (eğer açıksa)
-        try:
-            self.calls_panel.refresh()
-        except Exception:  # noqa: BLE001
-            pass
+        if self.tabs.currentWidget() is self.calls_panel:
+            try:
+                self.calls_panel.refresh()
+            except Exception:  # noqa: BLE001
+                pass
 
     def _on_popup_closed(self, popup: IncomingCallPopup, was_unanswered: bool = False) -> None:
         if popup in self._popups:
@@ -318,16 +344,35 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------
     def _on_orders_changed(self) -> None:
-        # Sipariş paneli açıksa ve otomatik güncelleme aktifse yenile
+        # Debounce: 2 sn bekle, süre dolunca refresh yap
+        if hasattr(self, "_orders_debounce") and self._orders_debounce.isActive():
+            return
+        self._orders_debounce = QTimer(self)
+        self._orders_debounce.setSingleShot(True)
+        self._orders_debounce.setInterval(2000)
+        self._orders_debounce.timeout.connect(self._do_orders_refresh)
+        self._orders_debounce.start()
+
+    def _do_orders_refresh(self) -> None:
         if (
             self.tabs.currentWidget() is self.orders_panel
             and self.orders_panel.auto_refresh_enabled
         ):
             self.orders_panel.refresh()
-        # Kurye panelinin aktif sipariş sayıları için her zaman yenile
-        self.couriers_panel.refresh()
+        if self.tabs.currentWidget() is self.couriers_panel:
+            self.couriers_panel.refresh()
 
     def _on_customers_changed(self) -> None:
+        # Debounce: 2 sn bekle, süre dolunca refresh yap
+        if hasattr(self, "_customers_debounce") and self._customers_debounce.isActive():
+            return
+        self._customers_debounce = QTimer(self)
+        self._customers_debounce.setSingleShot(True)
+        self._customers_debounce.setInterval(2000)
+        self._customers_debounce.timeout.connect(self._do_customers_refresh)
+        self._customers_debounce.start()
+
+    def _do_customers_refresh(self) -> None:
         self._refresh_last_customer()
         if self.tabs.currentWidget() is self.customers_panel:
             self.customers_panel.refresh()

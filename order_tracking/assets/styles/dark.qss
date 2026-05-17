@@ -153,16 +153,17 @@ QTableWidget, QTableView {
     border: 1px solid #1F232E;
     border-radius: 5px;
     gridline-color: #1F232E;
-    selection-background-color: #1A1D26;
-    selection-color: #A78BFA;
+    selection-background-color: #2D1B69;
+    selection-color: #E9D5FF;
 }
 QTableWidget::item, QTableView::item {
     padding: 4px 6px;
     border: none;
 }
 QTableWidget::item:selected, QTableView::item:selected {
-    background-color: #1A1D26;
-    color: #D1D5DB;
+    background-color: #2D1B69;
+    color: #E9D5FF;
+    font-weight: 500;
 }
 QHeaderView::section {
     background-color: #15171E;

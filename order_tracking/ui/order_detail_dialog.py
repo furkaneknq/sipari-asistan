@@ -379,10 +379,10 @@ class OrderDetailDialog(QDialog):
         self.customer_combo.clear()
         self.customer_combo.addItem("", None)
 
-        # Yazma olayını dinle — lazy search
+        # Yazma olayını dinle — 800ms debounce ile lazy search
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
-        self._search_timer.setInterval(300)  # 300ms debounce
+        self._search_timer.setInterval(800)
         self._search_timer.timeout.connect(self._search_customers)
         self.customer_combo.lineEdit().textEdited.connect(
             lambda _: self._search_timer.start()
@@ -408,7 +408,7 @@ class OrderDetailDialog(QDialog):
                 self.guest_phone_input.setText(pretty)
 
     def _search_customers(self) -> None:
-        """Combo'da yazılan metne göre müşteri ara (debounced)."""
+        """Combo'da yazılan metne göre müşteri ara (800ms debounce)."""
         text = self.customer_combo.lineEdit().text().strip()
         if len(text) < 2:
             return
@@ -442,9 +442,13 @@ class OrderDetailDialog(QDialog):
             if idx >= 0:
                 self.customer_combo.setCurrentIndex(idx)
 
-        # Popup'u göster
-        self.customer_combo.lineEdit().setText(text)
+        # Popup'u göster — setText hem önce hem sonra lazım;
+        # showPopup() index değiştirip yazıyı silebiliyor.
+        le = self.customer_combo.lineEdit()
+        le.setText(text)
         self.customer_combo.showPopup()
+        le.setText(text)
+        le.setCursorPosition(len(text))
 
     def _prefill_customer(self, customer_id: str) -> None:
         """Belirli bir müşteriyi combo'ya ekleyip seç."""

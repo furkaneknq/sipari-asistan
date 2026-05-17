@@ -43,6 +43,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: checkedonce
 Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; OnlyBelowVersion: 6.1
 
+[InstallDelete]
+; Güncelleme kurulumunda eski dosyaları temizle (.env hariç — Code bölümünde yedeklenir)
+Type: filesandordirs; Name: "{app}\*"
+
 [Files]
 ; Ana uygulama klasörü (PyInstaller çıktısı)
 Source: "..\..\dist\SiparisAsistani\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -72,6 +76,9 @@ Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(
 {
   Kurulum öncesi: önceki sürüm çalışıyorsa kullanıcıyı uyar.
 }
+var
+  EnvBackupPath: String;
+
 function InitializeSetup(): Boolean;
 var
   ResultCode: Integer;
@@ -80,24 +87,39 @@ begin
   if Exec('tasklist.exe', '/FI "IMAGENAME eq SiparisAsistani.exe"', '',
           SW_HIDE, ewWaitUntilTerminated, ResultCode) then
   begin
-    // sessiz devam — gerçek kontrol için ek IPC gerekir, kurulum sırasında dikkatli olunur
+    // sessiz devam — gerçek kontrol için ek IPC gerekir
   end;
 end;
 
 {
-  İlk kurulumda .env yoksa .env.example'ı kopyala.
+  Kurulum öncesi: .env varsa geçici yere yedekle ([InstallDelete] silmeden önce).
 }
 procedure CurStepChanged(CurStep: TSetupStep);
 var
-  Src, Dst: String;
+  EnvSrc, EnvDst: String;
 begin
+  if CurStep = ssInstall then
+  begin
+    EnvSrc := ExpandConstant('{app}\.env');
+    EnvBackupPath := ExpandConstant('{tmp}\.env.backup');
+    if FileExists(EnvSrc) then
+      FileCopy(EnvSrc, EnvBackupPath, False);
+  end;
+
+  { Kurulum sonrası: .env geri yükle veya .env.example'dan oluştur. }
   if CurStep = ssPostInstall then
   begin
-    Src := ExpandConstant('{app}\.env.example');
-    Dst := ExpandConstant('{app}\.env');
-    if FileExists(Src) and not FileExists(Dst) then
+    EnvDst := ExpandConstant('{app}\.env');
+    if (EnvBackupPath <> '') and FileExists(EnvBackupPath) then
     begin
-      FileCopy(Src, Dst, False);
+      FileCopy(EnvBackupPath, EnvDst, False);
+      DeleteFile(EnvBackupPath);
+    end
+    else
+    begin
+      EnvSrc := ExpandConstant('{app}\.env.example');
+      if FileExists(EnvSrc) and not FileExists(EnvDst) then
+        FileCopy(EnvSrc, EnvDst, False);
     end;
   end;
 end;
@@ -114,8 +136,6 @@ begin
     EnvSrc := ExpandConstant('{app}\.env');
     EnvDst := ExpandConstant('{userappdata}\SiparisAsistani\.env.backup');
     if FileExists(EnvSrc) then
-    begin
       FileCopy(EnvSrc, EnvDst, False);
-    end;
   end;
 end;

@@ -139,6 +139,14 @@ class CouriersPanel(QWidget):
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "Hata", str(exc))
             return
+
+        # Batch: tüm kuryelerin aktif sipariş sayısını tek sorguda al
+        courier_ids = [cr.get("id") for cr in couriers if cr.get("id")]
+        try:
+            counts = couriers_db.batch_count_active_orders(courier_ids)
+        except Exception:  # noqa: BLE001
+            counts = {}
+
         self.courier_table.setRowCount(0)
         for cr in couriers:
             row = self.courier_table.rowCount()
@@ -152,10 +160,7 @@ class CouriersPanel(QWidget):
                 row, 1, QTableWidgetItem(format_phone(cr.get("phone") or ""))
             )
 
-            try:
-                count = couriers_db.count_active_orders(cr_id)
-            except Exception:  # noqa: BLE001
-                count = 0
+            count = counts.get(cr_id, 0)
             count_item = QTableWidgetItem(str(count))
             count_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.courier_table.setItem(row, 2, count_item)

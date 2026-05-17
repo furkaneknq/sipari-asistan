@@ -106,18 +106,37 @@ class CustomerDetailDialog(QDialog):
         addr_widget.setLayout(addr_layout)
 
         # Sipariş geçmişi tablosu
-        self.orders_table = QTableWidget(0, 5)
+        self.orders_table = QTableWidget(0, 7)
         self.orders_table.setHorizontalHeaderLabels(
-            ["Sipariş", "Tarih", "Tutar", "Durum", "Ödeme"]
+            ["Sipariş", "Tarih", "Saat", "Adres", "Tutar", "Durum", "Ödeme"]
         )
         self.orders_table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
+            3, QHeaderView.ResizeMode.Stretch
         )
         self.orders_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.orders_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.orders_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.orders_table.setAlternatingRowColors(True)
+        self.orders_table.verticalHeader().setVisible(False)
+        self.orders_table.doubleClicked.connect(lambda _: self._edit_order())
+
+        edit_order_btn = QPushButton("✏️ Düzenle")
+        edit_order_btn.setToolTip("Seçili siparişi düzenle")
+        edit_order_btn.clicked.connect(self._edit_order)
+        del_order_btn = QPushButton("🗑 Sil")
+        del_order_btn.setToolTip("Seçili siparişi sil")
+        del_order_btn.setStyleSheet("color: #D32F2F;")
+        del_order_btn.clicked.connect(self._delete_order)
+
+        order_btn_row = QHBoxLayout()
+        order_btn_row.addStretch()
+        order_btn_row.addWidget(edit_order_btn)
+        order_btn_row.addWidget(del_order_btn)
 
         orders_layout = QVBoxLayout()
         orders_layout.addWidget(QLabel("Geçmiş Siparişler"))
         orders_layout.addWidget(self.orders_table)
+        orders_layout.addLayout(order_btn_row)
 
         orders_widget = QFrame()
         orders_widget.setLayout(orders_layout)
@@ -172,32 +191,64 @@ class CustomerDetailDialog(QDialog):
                 )
 
     def _reload_orders(self) -> None:
-        orders = orders_db.list_customer_orders(self.customer_id)
+        orders = orders_db.list_orders_by_customer(self.customer_id, limit=50)
         self.orders_table.setRowCount(0)
         for order in orders:
             row = self.orders_table.rowCount()
             self.orders_table.insertRow(row)
+
+            # Sipariş numarası (order_id gizli)
+            num_item = QTableWidgetItem(f"#{order.get('order_number')}")
+            num_item.setData(Qt.ItemDataRole.UserRole, order.get("id"))
+            self.orders_table.setItem(row, 0, num_item)
+
+            # Tarih
+            od = order.get("order_date") or ""
+            if od:
+                try:
+                    from datetime import datetime as _dt
+                    d = _dt.strptime(od, "%Y-%m-%d")
+                    od = d.strftime("%d.%m.%Y")
+                except Exception:  # noqa: BLE001
+                    pass
+            self.orders_table.setItem(row, 1, QTableWidgetItem(od))
+
+            # Saat
+            dt = order.get("delivery_time") or ""
             self.orders_table.setItem(
-                row, 0, QTableWidgetItem(f"#{order.get('order_number')}")
+                row, 2, QTableWidgetItem(dt[:5] if dt else "-")
             )
+
+            # Adres
+            addr = (order.get("customer_addresses") or {}).get("address_text") or "-"
+            addr_item = QTableWidgetItem(addr[:50])
+            addr_item.setToolTip(addr)
+            self.orders_table.setItem(row, 3, addr_item)
+
+            # Tutar
             self.orders_table.setItem(
-                row, 1, QTableWidgetItem(short_date(order.get("created_at")))
+                row, 4, QTableWidgetItem(format_currency(order.get("total_amount")))
             )
+
+            # Durum
             self.orders_table.setItem(
-                row, 2, QTableWidgetItem(format_currency(order.get("total_amount")))
-            )
-            self.orders_table.setItem(
-                row,
-                3,
+                row, 5,
                 QTableWidgetItem(STATUS_LABELS.get(order.get("status"), order.get("status", ""))),
             )
+
+            # Ödeme
             payment_status = order.get("payment_status") or ""
             payment = {
                 "pending": "Beklemede",
                 "paid": "Ödendi",
                 "partial": "Kısmi",
             }.get(payment_status, payment_status)
-            self.orders_table.setItem(row, 4, QTableWidgetItem(payment))
+            self.orders_table.setItem(row, 6, QTableWidgetItem(payment))
+
+        self.orders_table.resizeColumnsToContents()
+        self.orders_table.horizontalHeader().setSectionResizeMode(
+            3, QHeaderView.ResizeMode.Stretch
+        )
 
     # ------------------------------------------------------------------
     def _save_info(self) -> None:
@@ -393,3 +444,41 @@ class CustomerDetailDialog(QDialog):
             QMessageBox.information(self, "Kaydedildi", "Adres güncellendi.")
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "Hata", str(exc))
+
+    # ------------------------------------------------------------------
+    # Sipariş düzenle / sil
+    # ------------------------------------------------------------------
+    def _selected_order_id(self) -> str | None:
+        row = self.orders_table.currentRow()
+        if row < 0:
+            return None
+        item = self.orders_table.item(row, 0)
+        return item.data(Qt.ItemDataRole.UserRole) if item else None
+
+    def _edit_order(self) -> None:
+        oid = self._selected_order_id()
+        if not oid:
+            return
+        mw = self.window()
+        if mw and hasattr(mw, "_open_order"):
+            self.close()
+            mw._open_order(oid)
+
+    def _delete_order(self) -> None:
+        oid = self._selected_order_id()
+        if not oid:
+            return
+        ans = QMessageBox.question(
+            self,
+            "Sipariş Sil",
+            "Bu siparişi silmek istediğinize emin misiniz?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if ans != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            orders_db.delete_order(oid)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.warning(self, "Hata", str(exc))
+            return
+        self._reload_orders()

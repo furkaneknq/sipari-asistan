@@ -285,6 +285,11 @@ class IncomingCallsPanel(QWidget):
                 lambda: self._open_order_for(cust["id"], call.get("id"))
             )
             menu.addAction(order_act)
+            history_act = QAction("📋 Sipariş Geçmişi", self)
+            history_act.triggered.connect(
+                lambda: self._show_order_history(cust["id"])
+            )
+            menu.addAction(history_act)
         else:
             guest_act = QAction("📌 Misafir Sipariş Oluştur", self)
             guest_act.triggered.connect(
@@ -333,3 +338,13 @@ class IncomingCallsPanel(QWidget):
             self.refresh()
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "Hata", str(exc))
+
+    def _show_order_history(self, customer_id: str) -> None:
+        """Müşterinin sipariş geçmişi dialog'unu aç."""
+        from ui.order_history_dialog import OrderHistoryDialog
+        dlg = OrderHistoryDialog(
+            customer_id,
+            parent=self,
+            main_window=self.window(),
+        )
+        dlg.show()
