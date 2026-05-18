@@ -151,7 +151,18 @@ class OrderDetailDialog(QDialog):
         top_form = QFormLayout()
         top_form.addRow("", self.guest_check)
 
-        top_form.addRow("Müşteri *", self.customer_combo)
+        # Müşteri satırı + geçmiş butonu
+        cust_row = QHBoxLayout()
+        cust_row.addWidget(self.customer_combo, 1)
+        self.history_btn = QPushButton("📋 Geçmiş")
+        self.history_btn.setToolTip("Müşterinin sipariş geçmişi")
+        self.history_btn.setVisible(False)
+        self.history_btn.clicked.connect(self._show_customer_history)
+        cust_row.addWidget(self.history_btn)
+        cust_row_widget = QWidget()
+        cust_row_widget.setLayout(cust_row)
+        cust_row.setContentsMargins(0, 0, 0, 0)
+        top_form.addRow("Müşteri *", cust_row_widget)
         top_form.addRow("Telefon", self.phone_label)
 
         addr_row = QHBoxLayout()
@@ -606,8 +617,10 @@ class OrderDetailDialog(QDialog):
         self._addresses = []
         if not cust_id:
             self.phone_label.setText("-")
+            self.history_btn.setVisible(False)
             return
 
+        self.history_btn.setVisible(True)
         cust = next((c for c in self._customers if c.get("id") == cust_id), None)
         if cust:
             self.phone_label.setText(cust.get("phone", "-"))
@@ -988,3 +1001,16 @@ class OrderDetailDialog(QDialog):
 
         self.print_after_save = print_after
         self.accept()
+
+    def _show_customer_history(self) -> None:
+        """Seçili müşterinin sipariş geçmişi dialog'unu aç."""
+        cust_id = self.customer_combo.currentData()
+        if not cust_id:
+            return
+        from ui.order_history_dialog import OrderHistoryDialog
+        dlg = OrderHistoryDialog(
+            cust_id,
+            parent=self,
+            main_window=self.parent(),
+        )
+        dlg.exec()

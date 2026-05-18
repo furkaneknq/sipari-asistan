@@ -98,6 +98,7 @@ class OrdersPanel(QWidget):
         self._auto_refresh = True
         self._courier_filter: str | None = None  # None=Tümü, "__none__"=Atanmamış, uuid=spesifik kurye
         self._syncing_selection = False  # checkbox ↔ satır seçim senkronizasyon kilidi
+        self._skip_next_refresh = False  # inline düzenleme sonrası polling refresh'i atla
 
         self._build_ui()
         self.refresh()
@@ -455,10 +456,16 @@ class OrdersPanel(QWidget):
     # ==================================================================
     # Yenileme
     # ==================================================================
-    def refresh(self) -> None:
+    def refresh(self, *, reload_couriers: bool = False) -> None:
+        # Inline düzenleme sonrası polling'den gelen refresh'i atla
+        if self._skip_next_refresh:
+            self._skip_next_refresh = False
+            return
         self._update_range_label()
-        # Kurye listesini de güncelle (yeni eklenen kuryeler için)
-        self._populate_courier_filter()
+        # Kurye listesini sadece istendiğinde güncelle (performans)
+        if reload_couriers or not hasattr(self, "_couriers_loaded"):
+            self._populate_courier_filter()
+            self._couriers_loaded = True
         try:
             orders = orders_db.list_orders(
                 start_date=self.start_date,
@@ -710,10 +717,10 @@ class OrdersPanel(QWidget):
         # Edit edilmek için tıklamak yeter; klavye odaklanınca direkt düzenleme
         spin.setProperty("order_id", order_id)
         spin.setProperty("order_total", total)
+        spin.setProperty("_last_saved", paid)  # çift tetikleme önleme
         # Görünüm: tam ödeme yeşil, kısmi sarı, ödenmemiş gri
         self._style_paid_spin(spin, paid, total)
-        # editingFinished yerine valueChanged çok agresif olur (her tuş atımı kayıt).
-        # editingFinished = focus kaybedince bir kez tetiklenir.
+        # editingFinished = focus kaybedince tetiklenir
         spin.editingFinished.connect(lambda s=spin: self._on_paid_edited(s))
         return spin
 
@@ -740,6 +747,11 @@ class OrdersPanel(QWidget):
         if not order_id:
             return
         new_paid = float(spin.value())
+        # Çift tetikleme önleme: değer değişmediyse DB'ye yazma
+        last = spin.property("_last_saved")
+        if last is not None and abs(float(last) - new_paid) < 0.005:
+            return
+        spin.setProperty("_last_saved", new_paid)
 
         # DB'ye yaz, payment_status otomatik türetilir
         try:
@@ -747,6 +759,7 @@ class OrdersPanel(QWidget):
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "Ödeme Kayıt Hatası", str(exc))
             return
+        self._skip_next_refresh = True  # polling refresh'i atla
 
         # Lokal cache + sıralama item'ı güncelle
         for order in self._current_orders:
@@ -819,6 +832,7 @@ class OrdersPanel(QWidget):
         spin.setAlignment(Qt.AlignmentFlag.AlignRight)
         spin.setValue(amount)
         spin.setProperty("order_id", order_id)
+        spin.setProperty("_last_saved", amount)  # çift tetikleme önleme
         spin.setStyleSheet(
             "QDoubleSpinBox { font-weight: bold; padding: 2px 6px; "
             "border: 1px solid #45475A; border-radius: 3px; }"
@@ -831,12 +845,18 @@ class OrdersPanel(QWidget):
         if not order_id:
             return
         new_amount = float(spin.value())
+        # Çift tetikleme önleme
+        last = spin.property("_last_saved")
+        if last is not None and abs(float(last) - new_amount) < 0.005:
+            return
+        spin.setProperty("_last_saved", new_amount)
 
         try:
             orders_db.update_order_payment(order_id, total_amount=new_amount)
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "Tutar Kayıt Hatası", str(exc))
             return
+        self._skip_next_refresh = True  # polling refresh'i atla
 
         # Lokal cache güncelle
         for order in self._current_orders:

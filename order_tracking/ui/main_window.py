@@ -141,7 +141,7 @@ class MainWindow(QMainWindow):
     # Realtime listener
     # ==================================================================
     def _start_listener(self) -> None:
-        self.listener = RealtimeListener(poll_interval_seconds=10.0)
+        self.listener = RealtimeListener(poll_interval_seconds=15.0)
         self.listener.incoming_call_received.connect(self._on_incoming_call)
         self.listener.orders_changed.connect(self._on_orders_changed)
         self.listener.customers_changed.connect(self._on_customers_changed)
@@ -345,12 +345,14 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     def _on_orders_changed(self) -> None:
         # Debounce: 2 sn bekle, süre dolunca refresh yap
-        if hasattr(self, "_orders_debounce") and self._orders_debounce.isActive():
+        if not hasattr(self, "_orders_debounce"):
+            self._orders_debounce = QTimer(self)
+            self._orders_debounce.setSingleShot(True)
+            self._orders_debounce.setInterval(2000)
+            self._orders_debounce.timeout.connect(self._do_orders_refresh)
+        # Zaten aktifse yeniden başlatma (debounce)
+        if self._orders_debounce.isActive():
             return
-        self._orders_debounce = QTimer(self)
-        self._orders_debounce.setSingleShot(True)
-        self._orders_debounce.setInterval(2000)
-        self._orders_debounce.timeout.connect(self._do_orders_refresh)
         self._orders_debounce.start()
 
     def _do_orders_refresh(self) -> None:
@@ -364,12 +366,13 @@ class MainWindow(QMainWindow):
 
     def _on_customers_changed(self) -> None:
         # Debounce: 2 sn bekle, süre dolunca refresh yap
-        if hasattr(self, "_customers_debounce") and self._customers_debounce.isActive():
+        if not hasattr(self, "_customers_debounce"):
+            self._customers_debounce = QTimer(self)
+            self._customers_debounce.setSingleShot(True)
+            self._customers_debounce.setInterval(2000)
+            self._customers_debounce.timeout.connect(self._do_customers_refresh)
+        if self._customers_debounce.isActive():
             return
-        self._customers_debounce = QTimer(self)
-        self._customers_debounce.setSingleShot(True)
-        self._customers_debounce.setInterval(2000)
-        self._customers_debounce.timeout.connect(self._do_customers_refresh)
         self._customers_debounce.start()
 
     def _do_customers_refresh(self) -> None:
@@ -575,9 +578,6 @@ class MainWindow(QMainWindow):
                         printer.text(line + "\n")
                 printer.cut()
             printer.close()
-            QMessageBox.information(
-                self, "Yazıcı", f"{len(all_data)} müşteri fişi yazdırıldı."
-            )
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "Yazıcı Hatası", str(exc))
 
@@ -619,9 +619,7 @@ class MainWindow(QMainWindow):
             return
 
         ok, msg = print_preparation_receipt(selected_orders)
-        if ok:
-            QMessageBox.information(self, "Yazıcı", msg)
-        else:
+        if not ok:
             QMessageBox.warning(self, "Yazıcı", msg)
 
     # ==================================================================
