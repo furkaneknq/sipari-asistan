@@ -356,12 +356,10 @@ class MainWindow(QMainWindow):
         self._orders_debounce.start()
 
     def _do_orders_refresh(self) -> None:
-        if (
-            self.tabs.currentWidget() is self.orders_panel
-            and self.orders_panel.auto_refresh_enabled
-        ):
+        current = self.tabs.currentWidget()
+        if current is self.orders_panel and self.orders_panel.auto_refresh_enabled:
             self.orders_panel.refresh()
-        if self.tabs.currentWidget() is self.couriers_panel:
+        elif current is self.couriers_panel:
             self.couriers_panel.refresh()
 
     def _on_customers_changed(self) -> None:
@@ -377,6 +375,7 @@ class MainWindow(QMainWindow):
 
     def _do_customers_refresh(self) -> None:
         self._refresh_last_customer()
+        self.customers_panel.invalidate_cache()
         if self.tabs.currentWidget() is self.customers_panel:
             self.customers_panel.refresh()
 
@@ -400,7 +399,7 @@ class MainWindow(QMainWindow):
         cust_id = customer_id if isinstance(customer_id, str) else None
         dlg = OrderDetailDialog(self, prefill_customer_id=cust_id)
         if dlg.exec() == QDialog.DialogCode.Accepted:
-            self.orders_panel.refresh()
+            self.orders_panel.refresh(clear_cache=True)
             if dlg.print_after_save and dlg.saved_order_id:
                 self._print_order(dlg.saved_order_id)
 
@@ -417,26 +416,26 @@ class MainWindow(QMainWindow):
         popup.create_guest_order_requested.connect(self._open_guest_order_for_phone)
         popup.closed.connect(self._on_popup_closed)
         self._popups.append(popup)
-        self._reposition_popups()
         popup.show()
-        popup.raise_()
-        popup.activateWindow()
 
     def _open_new_order_for_customer(self, customer_id: str) -> None:
-        self._open_new_order(customer_id)
+        dlg = OrderDetailDialog(self, prefill_customer_id=customer_id)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self.orders_panel.refresh(clear_cache=True)
+            if dlg.print_after_save and dlg.saved_order_id:
+                self._print_order(dlg.saved_order_id)
 
     def _open_guest_order_for_phone(self, phone: str) -> None:
-        """Misafir modunda OrderDetailDialog aç, telefonu prefill yap."""
         dlg = OrderDetailDialog(self, guest_mode=True, prefill_phone=phone)
         if dlg.exec() == QDialog.DialogCode.Accepted:
-            self.orders_panel.refresh()
+            self.orders_panel.refresh(clear_cache=True)
             if dlg.print_after_save and dlg.saved_order_id:
                 self._print_order(dlg.saved_order_id)
 
     def _open_order(self, order_id: str) -> None:
         dlg = OrderDetailDialog(self, order_id=order_id)
         if dlg.exec() == QDialog.DialogCode.Accepted:
-            self.orders_panel.refresh()
+            self.orders_panel.refresh(clear_cache=True)
             self.couriers_panel.refresh()
             if dlg.print_after_save and dlg.saved_order_id:
                 self._print_order(dlg.saved_order_id)
@@ -444,18 +443,21 @@ class MainWindow(QMainWindow):
     def _open_customer_detail(self, customer_id: str) -> None:
         dlg = CustomerDetailDialog(customer_id, self)
         dlg.exec()
+        self.customers_panel.invalidate_cache()
         self.customers_panel.refresh()
         self._refresh_last_customer()
 
     def _open_new_customer(self) -> None:
         dlg = NewCustomerDialog(self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
+            self.customers_panel.invalidate_cache()
             self.customers_panel.refresh()
             self._refresh_last_customer()
 
     def _open_new_customer_with_phone(self, phone: str) -> None:
         dlg = NewCustomerDialog(self, prefill_phone=phone)
         if dlg.exec() == QDialog.DialogCode.Accepted:
+            self.customers_panel.invalidate_cache()
             self.customers_panel.refresh()
             self._refresh_last_customer()
             cust = dlg.created_customer

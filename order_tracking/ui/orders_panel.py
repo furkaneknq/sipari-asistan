@@ -99,6 +99,7 @@ class OrdersPanel(QWidget):
         self._courier_filter: str | None = None  # None=Tümü, "__none__"=Atanmamış, uuid=spesifik kurye
         self._syncing_selection = False  # checkbox ↔ satır seçim senkronizasyon kilidi
         self._skip_next_refresh = False  # inline düzenleme sonrası polling refresh'i atla
+        self._items_cache: dict[str, dict[str, float]] = {}  # order_id → {qty, total}
 
         self._build_ui()
         self.refresh()
@@ -386,17 +387,20 @@ class OrdersPanel(QWidget):
     # ==================================================================
     def _set_range_today(self) -> None:
         self.start_date = self.end_date = date.today()
+        self._items_cache.clear()
         self._sync_calendar()
         self.refresh()
 
     def _set_range_yesterday(self) -> None:
         self.start_date = self.end_date = date.today() - timedelta(days=1)
+        self._items_cache.clear()
         self._sync_calendar()
         self.refresh()
 
     def _on_calendar_clicked(self, qdate: QDate) -> None:
         d = date(qdate.year(), qdate.month(), qdate.day())
         self.start_date = self.end_date = d
+        self._items_cache.clear()
         self.refresh()
 
     def _sync_calendar(self) -> None:
@@ -456,11 +460,13 @@ class OrdersPanel(QWidget):
     # ==================================================================
     # Yenileme
     # ==================================================================
-    def refresh(self, *, reload_couriers: bool = False) -> None:
+    def refresh(self, *, reload_couriers: bool = False, clear_cache: bool = False) -> None:
         # Inline düzenleme sonrası polling'den gelen refresh'i atla
         if self._skip_next_refresh:
             self._skip_next_refresh = False
             return
+        if clear_cache:
+            self._items_cache.clear()
         self._update_range_label()
         # Kurye listesini sadece istendiğinde güncelle (performans)
         if reload_couriers or not hasattr(self, "_couriers_loaded"):
@@ -492,12 +498,16 @@ class OrdersPanel(QWidget):
         # Filtreleme (UI tarafında, hızlı)
         filtered = self._apply_local_filters(orders)
 
-        # Batch kalem özetleri — N+1 sorgu yerine tek sorgu
-        order_ids = [o.get("id") for o in filtered if o.get("id")]
-        try:
-            items_summary = orders_db.batch_order_items_summary(order_ids)
-        except Exception:  # noqa: BLE001
-            items_summary = {}
+        # Batch kalem özetleri — cache'de olmayan ID'ler için tek sorgu
+        all_ids = [o.get("id") for o in filtered if o.get("id")]
+        missing_ids = [oid for oid in all_ids if oid not in self._items_cache]
+        if missing_ids:
+            try:
+                new_data = orders_db.batch_order_items_summary(missing_ids)
+                self._items_cache.update(new_data)
+            except Exception:  # noqa: BLE001
+                pass
+        items_summary = self._items_cache
 
         self.orders_table.setUpdatesEnabled(False)
         self.orders_table.setSortingEnabled(False)

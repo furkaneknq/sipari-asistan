@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QAction, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -35,13 +35,19 @@ class CustomersPanel(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
+        self._cached_customers: list[dict] = []
+        self._last_search: str | None = None  # son arama terimi
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(400)
+        self._search_timer.timeout.connect(self._do_search)
         self._build_ui()
         self.refresh()
 
     def _build_ui(self) -> None:
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("🔍 Ara: isim veya telefon")
-        self.search_input.textChanged.connect(self.refresh)
+        self.search_input.textChanged.connect(self._schedule_search)
 
         new_btn = QPushButton("+ Yeni Müşteri")
         new_btn.setObjectName("SuccessButton")
@@ -108,14 +114,31 @@ class CustomersPanel(QWidget):
         layout.addLayout(toolbar)
         layout.addWidget(self.table, 1)
 
+    def _schedule_search(self) -> None:
+        """Her tuş vuruşunda timer'ı yeniden başlat (400ms debounce)."""
+        self._search_timer.start()
+
+    def _do_search(self) -> None:
+        """Debounce süresi dolunca çağrılır."""
+        self.refresh()
+
     # ------------------------------------------------------------------
     def _focus_search(self) -> None:
         """Ctrl+F: Arama kutusuna odaklan ve içeriği seç."""
         self.search_input.setFocus()
         self.search_input.selectAll()
 
+    def invalidate_cache(self) -> None:
+        """Dışarıdan cache sıfırlama (yeni/düzenlenen müşteri sonrası)."""
+        self._last_search = None
+        self._cached_customers = []
+
     def refresh(self) -> None:
         search = self.search_input.text().strip()
+        # Cache: arama terimi değişmediyse DB'ye gitme
+        if search == self._last_search and self._cached_customers:
+            self._fill_table(self._cached_customers)
+            return
         try:
             if search:
                 customers = customers_db.list_customers(search=search, limit=200)
@@ -124,6 +147,11 @@ class CustomersPanel(QWidget):
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "Yükleme Hatası", str(exc))
             return
+        self._cached_customers = customers
+        self._last_search = search
+        self._fill_table(customers)
+
+    def _fill_table(self, customers: list[dict]) -> None:
 
         self.table.setSortingEnabled(False)
         self.table.setRowCount(0)

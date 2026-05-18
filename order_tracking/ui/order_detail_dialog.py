@@ -6,6 +6,7 @@ Mod 2: Mevcut sipariş düzenleme → kalemler, tutar, ödeme, durum güncellene
 
 from __future__ import annotations
 
+import time
 from datetime import date
 from typing import Any
 
@@ -44,6 +45,26 @@ from database import couriers_db, customers_db, orders_db, products_db
 from database.orders_db import STATUS_NEW, STATUS_ON_WAY
 from utils import quick_notes as quick_notes_store
 from utils.helpers import fit_to_screen, format_currency
+
+# Ürün/kategori modül-düzey cache (60s TTL) — her dialog açılışında DB'ye gitmeyi önler
+_PRODUCT_CACHE: dict[str, Any] = {}  # keys: "categories", "products", "ts"
+_PRODUCT_CACHE_TTL = 60.0  # saniye
+
+
+def _get_cached_products() -> tuple[list[dict], list[dict]]:
+    """(categories, all_products) çiftini cache'den ya da DB'den döndür."""
+    now = time.monotonic()
+    if (
+        _PRODUCT_CACHE.get("ts", 0.0) + _PRODUCT_CACHE_TTL > now
+        and "categories" in _PRODUCT_CACHE
+    ):
+        return _PRODUCT_CACHE["categories"], _PRODUCT_CACHE["products"]
+    cats = products_db.list_categories()
+    prods = products_db.list_products()  # filtre yok — tümü
+    _PRODUCT_CACHE["categories"] = cats
+    _PRODUCT_CACHE["products"] = prods
+    _PRODUCT_CACHE["ts"] = now
+    return cats, prods
 
 
 class _ClearOnZeroSpinBox(QDoubleSpinBox):
@@ -379,7 +400,7 @@ class OrderDetailDialog(QDialog):
     # ==================================================================
     def _load_data(self) -> None:
         try:
-            self._categories = products_db.list_categories()
+            self._categories, self._all_products = _get_cached_products()
             self._couriers = couriers_db.list_couriers()
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "Veri Hatası", str(exc))
@@ -498,10 +519,11 @@ class OrderDetailDialog(QDialog):
         grid = QGridLayout(container)
         grid.setSpacing(8)
 
-        try:
-            products = products_db.list_products(category_id=category_id)
-        except Exception:  # noqa: BLE001
-            products = []
+        # Cache'den kategori filtresi — DB sorgusu yok
+        products = [
+            p for p in getattr(self, "_all_products", [])
+            if p.get("category_id") == category_id
+        ]
 
         if not products:
             grid.addWidget(QLabel("Bu kategoride aktif ürün yok."), 0, 0)
