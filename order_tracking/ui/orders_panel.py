@@ -46,6 +46,7 @@ from utils.helpers import format_currency, format_phone, parse_iso_datetime
 
 class _WorkerSignals(QObject):
     error = pyqtSignal(str)
+    result = pyqtSignal(object)  # arka plan okuma sonucu
 
 
 class _DbWriteWorker(QRunnable):
@@ -63,6 +64,26 @@ class _DbWriteWorker(QRunnable):
     def run(self):
         try:
             self._fn(*self._args, **self._kwargs)
+        except Exception as exc:  # noqa: BLE001
+            self.signals.error.emit(str(exc))
+
+
+class _DbReadWorker(QRunnable):
+    """Arka planda DB sorgusu çalıştırıp sonucu sinyal ile döndürür."""
+
+    def __init__(self, fn, *args, **kwargs):
+        super().__init__()
+        self._fn = fn
+        self._args = args
+        self._kwargs = kwargs
+        self.signals = _WorkerSignals()
+        self.setAutoDelete(True)
+
+    @pyqtSlot()
+    def run(self):
+        try:
+            data = self._fn(*self._args, **self._kwargs)
+            self.signals.result.emit(data)
         except Exception as exc:  # noqa: BLE001
             self.signals.error.emit(str(exc))
 
@@ -127,6 +148,8 @@ class OrdersPanel(QWidget):
         self._syncing_selection = False  # checkbox ↔ satır seçim senkronizasyon kilidi
         self._skip_next_refresh = False  # inline düzenleme sonrası polling refresh'i atla
         self._items_cache: dict[str, dict[str, float]] = {}  # order_id → {qty, total}
+        self._last_detail_order_id: str | None = None  # detay tablosu cache
+        self._last_detail_items: list[dict] = []
 
         self._build_ui()
         self.refresh()
@@ -494,20 +517,43 @@ class OrdersPanel(QWidget):
             return
         if clear_cache:
             self._items_cache.clear()
+            self._last_detail_order_id = None
+            self._last_detail_items = []
         self._update_range_label()
-        # Kurye listesini sadece istendiğinde güncelle (performans)
+        # Kurye listesini sadece istendiginde güncelle (performans)
         if reload_couriers or not hasattr(self, "_couriers_loaded"):
             self._populate_courier_filter()
             self._couriers_loaded = True
-        try:
-            orders = orders_db.list_orders(
-                start_date=self.start_date,
-                end_date=self.end_date,
-            )
-        except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "Yükleme Hatası", str(exc))
-            return
 
+        # Arka planda veri çek (UI donmasın)
+        sd = self.start_date
+        ed = self.end_date
+        cache_ref = self._items_cache
+
+        def _fetch():
+            ords = orders_db.list_orders(start_date=sd, end_date=ed)
+            # Batch kalem özetleri — cache'de olmayan ID'ler için
+            all_ids = [o.get("id") for o in ords if o.get("id")]
+            missing = [oid for oid in all_ids if oid not in cache_ref]
+            new_data = {}
+            if missing:
+                new_data = orders_db.batch_order_items_summary(missing)
+            return {"orders": ords, "new_items": new_data}
+
+        worker = _DbReadWorker(_fetch)
+        worker.signals.result.connect(self._on_refresh_data)
+        worker.signals.error.connect(
+            lambda msg: QMessageBox.critical(self, "Yükleme Hatası", msg)
+        )
+        QThreadPool.globalInstance().start(worker)
+
+    def _on_refresh_data(self, data: object) -> None:
+        """Arka plan worker'dan gelen veriyi UI'da göster."""
+        if not isinstance(data, dict):
+            return
+        orders = data.get("orders", [])
+        new_items = data.get("new_items", {})
+        self._items_cache.update(new_items)
         self._current_orders = orders
         self._populate_orders_table(orders)
         self.list_title.setText(f"Sipariş Listesi  (Kayıt: {len(orders)})")
@@ -525,15 +571,6 @@ class OrdersPanel(QWidget):
         # Filtreleme (UI tarafında, hızlı)
         filtered = self._apply_local_filters(orders)
 
-        # Batch kalem özetleri — cache'de olmayan ID'ler için tek sorgu
-        all_ids = [o.get("id") for o in filtered if o.get("id")]
-        missing_ids = [oid for oid in all_ids if oid not in self._items_cache]
-        if missing_ids:
-            try:
-                new_data = orders_db.batch_order_items_summary(missing_ids)
-                self._items_cache.update(new_data)
-            except Exception:  # noqa: BLE001
-                pass
         items_summary = self._items_cache
 
         self.orders_table.setUpdatesEnabled(False)
@@ -1030,10 +1067,17 @@ class OrdersPanel(QWidget):
         self._populate_items_table(orders[0])
 
     def _populate_items_table(self, order: dict[str, Any]) -> None:
-        try:
-            items = orders_db.list_order_items(order.get("id"))
-        except Exception:  # noqa: BLE001
-            items = []
+        oid = order.get("id")
+        # Cache: aynı sipariş seçiliyse tekrar DB'ye gitme
+        if oid == self._last_detail_order_id and self._last_detail_items:
+            items = self._last_detail_items
+        else:
+            try:
+                items = orders_db.list_order_items(oid)
+            except Exception:  # noqa: BLE001
+                items = []
+            self._last_detail_order_id = oid
+            self._last_detail_items = items
 
         self.items_table.setRowCount(0)
         total_qty = 0.0

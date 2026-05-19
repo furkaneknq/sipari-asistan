@@ -183,10 +183,12 @@ class CouriersPanel(QWidget):
             orders = couriers_db.list_courier_orders(self._current_courier_id)
         except Exception:  # noqa: BLE001
             orders = []
+        # Kurye adını tablodaki mevcut satırdan al (ekstra DB sorgusu yok)
         cr_name = ""
-        for cr in couriers_db.list_couriers(only_active=False):
-            if cr.get("id") == self._current_courier_id:
-                cr_name = cr.get("name") or ""
+        for row in range(self.courier_table.rowCount()):
+            item = self.courier_table.item(row, 0)
+            if item and item.data(Qt.ItemDataRole.UserRole) == self._current_courier_id:
+                cr_name = item.text()
                 break
         self.orders_label.setText(f"{cr_name} - Siparişler ({len(orders)})")
 
