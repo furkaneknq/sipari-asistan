@@ -22,16 +22,33 @@ def list_customers(
     client = get_client()
 
     if search:
-        # Arama varsa tek sayfa yeterli (genelde az sonuç)
-        query = client.table("customers").select("*").order("name", desc=False)
-        if not include_guests:
-            query = query.eq("is_guest", False)
-        query = query.or_(f"name.ilike.%{search}%,phone.ilike.%{search}%")
-        if limit > 0:
-            query = query.limit(limit)
-        else:
-            query = query.limit(100)  # Arama sonuçlarını sınırla
-        return query.execute().data or []
+        # Türkçe karakter uyumlu arama (İ/i, I/ı farkını yok sayar)
+        effective_limit = limit if limit > 0 else 100
+        try:
+            resp = client.rpc(
+                "search_customers",
+                {
+                    "p_search": search,
+                    "p_limit": effective_limit,
+                    "p_include_guests": include_guests,
+                },
+            )
+            # Supabase client v1: .execute() gerekir, v2+: doğrudan döner
+            if hasattr(resp, "execute"):
+                resp = resp.execute()
+            return resp.data or []
+        except Exception as exc:  # noqa: BLE001
+            import logging
+            logging.getLogger(__name__).warning(
+                "search_customers RPC hatası, ilike fallback: %s", exc
+            )
+            # RPC yoksa (henüz migration çalıştırılmadıysa) eski yönteme düş
+            query = client.table("customers").select("*").order("name", desc=False)
+            if not include_guests:
+                query = query.eq("is_guest", False)
+            query = query.or_(f"name.ilike.%{search}%,phone.ilike.%{search}%")
+            query = query.limit(effective_limit)
+            return query.execute().data or []
 
     # Arama yoksa tüm müşterileri pagination ile çek
     PAGE_SIZE = 1000

@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -31,6 +32,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -308,6 +310,9 @@ fun OrderDetailScreen(
                 order = o,
                 onUpdatePaidAmount = { amount ->
                     viewModel.updatePaidAmount(o.id, amount)
+                },
+                onMarkAsIban = {
+                    viewModel.markAsIban(o.id)
                 }
             )
 
@@ -427,12 +432,42 @@ private fun StatusChangeSection(
 @Composable
 private fun PaidAmountSection(
     order: OrderEntity,
-    onUpdatePaidAmount: (Double) -> Unit
+    onUpdatePaidAmount: (Double) -> Unit,
+    onMarkAsIban: () -> Unit
 ) {
     var inputText by remember(order.id, order.paidAmount) {
         mutableStateOf(if (order.paidAmount > 0) "%.2f".format(order.paidAmount) else "")
     }
+    var showIbanConfirm by remember { mutableStateOf(false) }
     val remaining = order.totalAmount - order.paidAmount
+
+    // IBAN onay dialogı
+    if (showIbanConfirm) {
+        AlertDialog(
+            onDismissRequest = { showIbanConfirm = false },
+            title = { Text("🏦 IBAN Ödeme") },
+            text = {
+                Text(
+                    "Ödeme biçimi IBAN olarak ayarlanacak ve ödenen tutar 0 olarak kaydedilecek.\n\nOnaylıyor musunuz?"
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showIbanConfirm = false
+                        onMarkAsIban()
+                    }
+                ) {
+                    Text("Evet", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showIbanConfirm = false }) {
+                    Text("Hayır")
+                }
+            }
+        )
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -517,17 +552,33 @@ private fun PaidAmountSection(
                 }
             }
 
-            // Hızlı butonlar: Tamamını öde
-            if (remaining > 0.01) {
-                Spacer(Modifier.height(4.dp))
+            // Hızlı butonlar
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Tamamını öde butonu
+                if (remaining > 0.01) {
+                    OutlinedButton(
+                        onClick = {
+                            inputText = "%.2f".format(order.totalAmount)
+                            onUpdatePaidAmount(order.totalAmount)
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Tamamını Öde")
+                    }
+                }
+
+                // IBAN butonu
                 OutlinedButton(
-                    onClick = {
-                        inputText = "%.2f".format(order.totalAmount)
-                        onUpdatePaidAmount(order.totalAmount)
-                    },
-                    modifier = Modifier.fillMaxWidth()
+                    onClick = { showIbanConfirm = true },
+                    modifier = if (remaining > 0.01) Modifier.weight(1f) else Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.tertiary
+                    )
                 ) {
-                    Text("Tamamını Öde (₺${"%.2f".format(order.totalAmount)})")
+                    Text("🏦 IBAN")
                 }
             }
         }

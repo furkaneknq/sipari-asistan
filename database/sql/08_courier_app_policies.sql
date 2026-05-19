@@ -112,7 +112,8 @@ GRANT EXECUTE ON FUNCTION public.courier_update_order_status(UUID, UUID, TEXT) T
 CREATE OR REPLACE FUNCTION public.courier_update_paid_amount(
     p_order_id UUID,
     p_courier_id UUID,
-    p_paid_amount DECIMAL
+    p_paid_amount DECIMAL,
+    p_payment_method TEXT DEFAULT NULL
 )
 RETURNS JSON AS $$
 DECLARE
@@ -127,14 +128,15 @@ BEGIN
     END IF;
 
     UPDATE public.orders
-    SET paid_amount = p_paid_amount
+    SET paid_amount = p_paid_amount,
+        payment_method = COALESCE(p_payment_method, payment_method)
     WHERE id = p_order_id AND courier_id = p_courier_id;
 
     RETURN json_build_object('success', true);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-GRANT EXECUTE ON FUNCTION public.courier_update_paid_amount(UUID, UUID, DECIMAL) TO anon;
+GRANT EXECUTE ON FUNCTION public.courier_update_paid_amount(UUID, UUID, DECIMAL, TEXT) TO anon;
 
 -- ---------------------------------------------------------------------
 -- 4) Kuryenin siparişlerini getiren RPC

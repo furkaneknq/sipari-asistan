@@ -56,6 +56,10 @@ interface OrderDao {
     @Query("UPDATE orders SET paid_amount = :paidAmount WHERE id = :orderId")
     suspend fun updatePaidAmount(orderId: String, paidAmount: Double)
 
+    /** Ödeme yöntemi ve tutarı birlikte güncelle. */
+    @Query("UPDATE orders SET paid_amount = :paidAmount, payment_method = :paymentMethod WHERE id = :orderId")
+    suspend fun updatePaidAmountAndMethod(orderId: String, paidAmount: Double, paymentMethod: String)
+
     /** Adres konumunu lokal olarak güncelle. */
     @Query("UPDATE orders SET latitude = :lat, longitude = :lng WHERE id = :orderId")
     suspend fun updateLocation(orderId: String, lat: Double, lng: Double)

@@ -234,6 +234,49 @@ class OrderRepository(
         }
     }
 
+    // ─── Ödeme Yöntemi + Tutar Güncelleme ──────────────────────────────
+
+    /**
+     * Ödeme yöntemi ve tutarı birlikte güncelle.
+     * IBAN butonu gibi senaryolarda kullanılır.
+     */
+    suspend fun updatePaidAmountWithMethod(
+        orderId: String,
+        paidAmount: Double,
+        paymentMethod: String
+    ): Result<Boolean> = runCatching {
+        // Lokale yaz
+        dao.updatePaidAmountAndMethod(orderId, paidAmount, paymentMethod)
+
+        try {
+            val url = prefs.getUrlNow()
+            val key = prefs.getKeyNow()
+            val courierId = prefs.getCourierIdNow()
+
+            val resp = ApiClient.api(url).updatePaidAmount(
+                apiKey = key,
+                auth = "Bearer $key",
+                body = mapOf(
+                    "p_order_id" to orderId,
+                    "p_courier_id" to courierId,
+                    "p_paid_amount" to paidAmount.toString(),
+                    "p_payment_method" to paymentMethod
+                )
+            )
+
+            if (resp.success) {
+                Log.i(TAG, "IBAN ödeme güncelleme başarılı: $orderId → $paymentMethod / ₺$paidAmount")
+                true
+            } else {
+                Log.w(TAG, "IBAN ödeme güncelleme başarısız: ${resp.message}")
+                false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "IBAN ödeme güncelleme hata", e)
+            false
+        }
+    }
+
     // ─── Adres Konumu Kaydetme ────────────────────────────────────────
 
     /**

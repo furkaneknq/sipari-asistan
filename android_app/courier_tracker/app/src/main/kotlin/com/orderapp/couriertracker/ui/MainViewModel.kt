@@ -108,6 +108,16 @@ class MainViewModel : ViewModel() {
         }
     }
 
+    fun markAsIban(orderId: String) {
+        viewModelScope.launch {
+            repo.updatePaidAmountWithMethod(orderId, 0.0, "iban")
+                .onFailure { e ->
+                    errorMessage = "IBAN ödeme güncellenemedi: ${e.message}"
+                }
+            repo.getDailySummary().onSuccess { dailySummary = it }
+        }
+    }
+
     fun saveAddressLocation(orderId: String, addressId: String, latitude: Double, longitude: Double) {
         viewModelScope.launch {
             repo.saveAddressLocation(orderId, addressId, latitude, longitude)
