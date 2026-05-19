@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
 
 import config
 from database import customers_db, orders_db
+from database.backup_manager import create_backup, should_backup_today
 from database.realtime_listener import RealtimeListener
 from database.supabase_client import get_client
 from ui import themes
@@ -50,6 +51,7 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._restore_window_placement()
         self._start_listener()
+        self._start_auto_backup()
         self._load_active_theme()
         self._refresh_last_customer()
 
@@ -152,6 +154,27 @@ class MainWindow(QMainWindow):
         if hasattr(self, "listener") and self.listener.isRunning():
             self.listener.stop()
             self.listener.wait(3000)
+
+    # ==================================================================
+    # Otomatik yedekleme
+    # ==================================================================
+    def _start_auto_backup(self) -> None:
+        """Uygulama açıldıktan 5 sn sonra günlük yedekleme kontrolü yapar."""
+        self._backup_timer = QTimer(self)
+        self._backup_timer.setSingleShot(True)
+        self._backup_timer.setInterval(5000)
+        self._backup_timer.timeout.connect(self._run_auto_backup)
+        self._backup_timer.start()
+
+    def _run_auto_backup(self) -> None:
+        """Bugün yedek alınmadıysa arka planda yedek al."""
+        if not should_backup_today():
+            return
+        ok, msg = create_backup()
+        if ok:
+            self.status_bar.showMessage(f"✅ Otomatik yedek: {msg}", 8000)
+        else:
+            self.status_bar.showMessage(f"⚠️ Yedekleme hatası: {msg}", 8000)
 
     def _on_listener_status(self, msg: str) -> None:
         self.status_bar.showMessage(msg, 5000)

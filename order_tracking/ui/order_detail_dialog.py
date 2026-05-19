@@ -110,6 +110,7 @@ class OrderDetailDialog(QDialog):
         self._couriers: list[dict[str, Any]] = []
         self._items: list[dict[str, Any]] = []  # in-memory kalemler
         self._existing_order: dict[str, Any] | None = None
+        self._items_dirty = False
 
         self.print_after_save = False
         self.saved_order_id: str | None = None
@@ -689,9 +690,11 @@ class OrderDetailDialog(QDialog):
         for it in self._items:
             if it.get("product_id") == product.get("id"):
                 it["quantity"] += 1
+                self._items_dirty = True
                 self._refresh_items_table()
                 return
 
+        self._items_dirty = True
         self._items.append(
             {
                 "product_id": product.get("id"),
@@ -758,6 +761,9 @@ class OrderDetailDialog(QDialog):
 
     def _update_item(self, idx: int, key: str, value: Any) -> None:
         if 0 <= idx < len(self._items):
+            current = self._items[idx].get(key)
+            if current != value:
+                self._items_dirty = True
             self._items[idx][key] = value
             # toplam kolonu güncelle (tüm tabloyu yenilemeden)
             total = float(self._items[idx].get("quantity", 0)) * float(
@@ -770,6 +776,7 @@ class OrderDetailDialog(QDialog):
 
     def _remove_item(self, idx: int) -> None:
         if 0 <= idx < len(self._items):
+            self._items_dirty = True
             self._items.pop(idx)
             self._refresh_items_table()
 
@@ -940,6 +947,9 @@ class OrderDetailDialog(QDialog):
         notes = self.notes_input.toPlainText().strip() or None
         paid_amount = float(self.payment_amount.value())
         cart_total = float(getattr(self, "_cart_total", 0.0))
+        order_total = cart_total
+        if self.is_edit and not self._items_dirty and self._existing_order:
+            order_total = float(self._existing_order.get("total_amount") or cart_total)
 
         # Adres snapshot: sipariş anındaki adresi sabit sakla
         if is_guest:
@@ -966,13 +976,14 @@ class OrderDetailDialog(QDialog):
             if self.is_edit and self.order_id:
                 # Mevcut siparişi güncelle: kalemler + meta
                 orders_db.replace_order_items(self.order_id, self._items)
-                # Önce ödeme yöntemini güncelle (total DB trigger'ı tarafından yenilenir)
+                # Kalemler değişmediyse Siparişler ekranında elle girilen toplamı koru.
                 orders_db.update_order_payment(
                     self.order_id,
                     payment_method=method,
+                    total_amount=order_total,
                 )
                 # Sonra paid_amount + payment_status'ı tek seferde ayarla
-                orders_db.set_paid_amount(self.order_id, paid_amount, cart_total)
+                orders_db.set_paid_amount(self.order_id, paid_amount, order_total)
                 orders_db.update_order_status(self.order_id, new_status)
                 orders_db.assign_courier(self.order_id, courier_id)
                 # tarih/saat/notlar (orders_db kapsamı dışındaki alanlar)
@@ -995,7 +1006,7 @@ class OrderDetailDialog(QDialog):
                 # paid_amount'tan payment_status'ı türet
                 if paid_amount <= 0:
                     initial_status = "pending"
-                elif paid_amount + 0.005 >= cart_total:
+                elif paid_amount + 0.005 >= order_total:
                     initial_status = "paid"
                 else:
                     initial_status = "partial"
@@ -1015,7 +1026,7 @@ class OrderDetailDialog(QDialog):
                 new_id = created.get("id")
                 # paid_amount'ı ayrıca yaz (create_order parametresi yok)
                 if new_id and paid_amount > 0:
-                    orders_db.set_paid_amount(new_id, paid_amount, cart_total)
+                    orders_db.set_paid_amount(new_id, paid_amount, order_total)
                 self.saved_order_id = new_id
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "Kayıt Hatası", str(exc))

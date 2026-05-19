@@ -23,6 +23,9 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from pathlib import Path
+
+from database.backup_manager import create_backup, list_backups, restore_backup, get_backup_dir
 from database.supabase_client import get_client, test_connection
 from ui import themes
 import config
@@ -149,6 +152,56 @@ class SettingsPanel(QWidget):
         db_box.setLayout(db_layout)
         main_layout.addWidget(db_box)
 
+        # 6) Yedekleme
+        backup_box = QGroupBox("📂 Yedekleme")
+        backup_layout = QVBoxLayout()
+
+        # Son yedek bilgisi
+        self.backup_info_label = QLabel("Son yedek: kontrol ediliyor...")
+        backup_layout.addWidget(self.backup_info_label)
+
+        # Yedek dizini bilgisi
+        backup_dir_label = QLabel(f"Yedek konumu: {get_backup_dir()}")
+        backup_dir_label.setWordWrap(True)
+        backup_dir_label.setObjectName("SettingsInfo")
+        backup_layout.addWidget(backup_dir_label)
+
+        # Butonlar
+        btn_row = QHBoxLayout()
+        self.backup_now_btn = QPushButton("🔒 Şimdi Yedek Al")
+        self.backup_now_btn.setObjectName("SuccessButton")
+        self.backup_now_btn.clicked.connect(self._take_backup_now)
+
+        self.restore_btn = QPushButton("♻️ Geri Yükle")
+        self.restore_btn.clicked.connect(self._restore_backup)
+
+        self.open_folder_btn = QPushButton("📁 Klasörü Aç")
+        self.open_folder_btn.clicked.connect(self._open_backup_folder)
+
+        btn_row.addWidget(self.backup_now_btn)
+        btn_row.addWidget(self.restore_btn)
+        btn_row.addWidget(self.open_folder_btn)
+        backup_layout.addLayout(btn_row)
+
+        # Yedek listesi tablosu
+        self.backup_table = QTableWidget(0, 4)
+        self.backup_table.setHorizontalHeaderLabels(
+            ["Yedek Adı", "Tarih", "Satır Sayısı", "Boyut (MB)"]
+        )
+        self.backup_table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Stretch
+        )
+        self.backup_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.backup_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.backup_table.setMaximumHeight(200)
+        backup_layout.addWidget(self.backup_table)
+
+        backup_box.setLayout(backup_layout)
+        main_layout.addWidget(backup_box)
+
+        # Yedek listesini yükle
+        self._refresh_backup_list()
+
         main_layout.addStretch()
 
         scroll_area.setWidget(content_widget)
@@ -266,3 +319,109 @@ class SettingsPanel(QWidget):
         }
         ok, msg = print_receipt(order, items, settings)
         QMessageBox.information(self, "Test Yazdır", msg)
+
+    # ------------------------------------------------------------------
+    # Yedekleme
+    # ------------------------------------------------------------------
+    def _refresh_backup_list(self) -> None:
+        """Yedek tablosunu ve bilgi etiketini günceller."""
+        backups = list_backups()
+        self.backup_table.setRowCount(0)
+
+        if backups:
+            last = backups[0]
+            created = last.get("created_at", "")
+            if created:
+                try:
+                    from datetime import datetime
+                    dt = datetime.fromisoformat(created)
+                    created = dt.strftime("%d.%m.%Y %H:%M")
+                except Exception:  # noqa: BLE001
+                    pass
+            self.backup_info_label.setText(
+                f"Son yedek: {last['name']} — {created} ({last['total_rows']} satır)"
+            )
+        else:
+            self.backup_info_label.setText("Son yedek: Henüz yedek alınmamış")
+
+        for b in backups:
+            row = self.backup_table.rowCount()
+            self.backup_table.insertRow(row)
+            self.backup_table.setItem(row, 0, QTableWidgetItem(b["name"]))
+
+            created = b.get("created_at", "")
+            if created:
+                try:
+                    from datetime import datetime
+                    dt = datetime.fromisoformat(created)
+                    created = dt.strftime("%d.%m.%Y %H:%M")
+                except Exception:  # noqa: BLE001
+                    pass
+            self.backup_table.setItem(row, 1, QTableWidgetItem(created))
+            self.backup_table.setItem(row, 2, QTableWidgetItem(str(b["total_rows"])))
+            self.backup_table.setItem(row, 3, QTableWidgetItem(str(b["size_mb"])))
+
+    def _take_backup_now(self) -> None:
+        """Elle yedek al."""
+        self.backup_now_btn.setEnabled(False)
+        self.backup_now_btn.setText("⏳ Yedekleniyor...")
+
+        try:
+            ok, msg = create_backup()
+            if ok:
+                QMessageBox.information(self, "Yedekleme", f"✅ {msg}")
+            else:
+                QMessageBox.warning(self, "Yedekleme", f"⚠️ {msg}")
+        finally:
+            self.backup_now_btn.setEnabled(True)
+            self.backup_now_btn.setText("🔒 Şimdi Yedek Al")
+            self._refresh_backup_list()
+
+    def _restore_backup(self) -> None:
+        """Seçili yedeği geri yükler."""
+        selected = self.backup_table.selectedItems()
+        if not selected:
+            QMessageBox.warning(
+                self, "Geri Yükleme", "Lütfen tablodan bir yedek seçin."
+            )
+            return
+
+        row = selected[0].row()
+        backup_name = self.backup_table.item(row, 0).text()
+        backup_path = get_backup_dir() / backup_name
+
+        # Onay
+        reply = QMessageBox.question(
+            self,
+            "Geri Yükleme Onayı",
+            f"⚠️ DİKKAT: Bu işlem mevcut veritabanı verilerinin üzerine yazacak!\n\n"
+            f"Yedek: {backup_name}\n\n"
+            f"Devam etmek istiyor musunuz?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        ok, msg = restore_backup(backup_path)
+        if ok:
+            QMessageBox.information(self, "Geri Yükleme", f"✅ {msg}")
+        else:
+            QMessageBox.critical(self, "Geri Yükleme", f"❌ {msg}")
+
+    def _open_backup_folder(self) -> None:
+        """Yedek klasörünü dosya yöneticisinde açar."""
+        import subprocess
+        import sys
+
+        backup_dir = str(get_backup_dir())
+        try:
+            if sys.platform.startswith("win"):
+                import os
+                os.startfile(backup_dir)  # type: ignore[attr-defined]
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", backup_dir])
+            else:
+                subprocess.Popen(["xdg-open", backup_dir])
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.warning(self, "Hata", f"Klasör açılamadı: {exc}")
