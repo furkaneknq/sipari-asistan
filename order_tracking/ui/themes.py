@@ -10,8 +10,10 @@ import config
 
 
 THEMES = {
-    "light": "light.qss",
-    "dark": "dark.qss",
+    "light": {"label": "Açık", "file": "light.qss"},
+    "dark": {"label": "Koyu", "file": "dark.qss"},
+    "forest": {"label": "Orman", "file": "forest.qss"},
+    "graphite": {"label": "Grafit", "file": "graphite.qss"},
 }
 
 
@@ -19,9 +21,17 @@ def list_theme_names() -> list[str]:
     return list(THEMES.keys())
 
 
+def theme_label(theme_name: str) -> str:
+    theme = THEMES.get(theme_name)
+    if theme is None:
+        return theme_name.title()
+    return theme["label"]
+
+
 def load_qss(theme_name: str) -> str:
     """QSS dosyasının içeriğini döner."""
-    file_name = THEMES.get(theme_name, THEMES["light"])
+    theme = THEMES.get(theme_name, THEMES["light"])
+    file_name = theme["file"]
     path = Path(config.STYLES_DIR) / file_name
     if not path.exists():
         return ""

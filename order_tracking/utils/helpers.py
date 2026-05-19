@@ -153,9 +153,11 @@ def fit_to_screen(
     widget,
     preferred_w: int,
     preferred_h: int,
-    min_w_ratio: float = 0.6,
-    min_h_ratio: float = 0.6,
+    min_w_ratio: float = 0.42,
+    min_h_ratio: float = 0.42,
     max_ratio: float = 0.92,
+    min_w: int = 900,
+    min_h: int = 600,
 ) -> None:
     """Widget'ı ekran çözünürlüğüne göre boyutlandırır.
 
@@ -174,9 +176,9 @@ def fit_to_screen(
     w = min(preferred_w, max_w)
     h = min(preferred_h, max_h)
     widget.resize(w, h)
-    min_w = min(int(geo.width() * min_w_ratio), w)
-    min_h = min(int(geo.height() * min_h_ratio), h)
-    widget.setMinimumSize(min_w, min_h)
+    min_width = min(max(int(geo.width() * min_w_ratio), min_w), w)
+    min_height = min(max(int(geo.height() * min_h_ratio), min_h), h)
+    widget.setMinimumSize(min_width, min_height)
     # Mümkünse ekran içinde ortala
     try:
         widget.move(
@@ -185,3 +187,29 @@ def fit_to_screen(
         )
     except Exception:  # noqa: BLE001
         pass
+
+
+def keep_widget_on_screen(widget, margin: int = 24) -> None:
+    """Kayıtlı pencere konumu ekran dışında kalırsa görünür alana taşır."""
+    from PyQt6.QtGui import QGuiApplication
+
+    screens = QGuiApplication.screens()
+    if not screens:
+        return
+
+    frame = widget.frameGeometry()
+    for screen in screens:
+        if screen.availableGeometry().intersects(frame):
+            return
+
+    screen = QGuiApplication.primaryScreen()
+    if screen is None:
+        return
+    geo = screen.availableGeometry()
+    width = min(frame.width(), geo.width() - margin * 2)
+    height = min(frame.height(), geo.height() - margin * 2)
+    widget.resize(width, height)
+    widget.move(
+        geo.left() + (geo.width() - width) // 2,
+        geo.top() + (geo.height() - height) // 2,
+    )

@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from typing import Any
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import QSettings, Qt, QTimer
 from PyQt6.QtGui import QGuiApplication, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QApplication,
@@ -36,19 +36,19 @@ from ui.orders_panel import OrdersPanel
 from ui.products_panel import ProductsPanel
 from ui.receipt_preview import ReceiptPreviewDialog
 from ui.settings_panel import SettingsPanel
-from utils.helpers import fit_to_screen, format_phone
+from utils.helpers import fit_to_screen, format_phone, keep_widget_on_screen
 
 
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(f"{config.APP_NAME} v{config.APP_VERSION}")
-        fit_to_screen(self, 1400, 900, min_w_ratio=0.5, min_h_ratio=0.5)
 
         self._popups: list[IncomingCallPopup] = []
         self._last_call_data: dict[str, Any] | None = None
 
         self._build_ui()
+        self._restore_window_placement()
         self._start_listener()
         self._load_active_theme()
         self._refresh_last_customer()
@@ -158,8 +158,7 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------
     def _setup_global_shortcuts(self) -> None:
-        """Global klavye kısayolları:
-        Ctrl+1..6 → sekme değiştir, F1 → kısayol yardımı."""
+        """Global klavye kısayolları."""
         # Ctrl+1 .. Ctrl+6 → ilgili sekmeyi aç
         for i in range(self.tabs.count()):
             sc = QShortcut(QKeySequence(f"Ctrl+{i + 1}"), self)
@@ -168,6 +167,12 @@ class MainWindow(QMainWindow):
         help_sc = QShortcut(QKeySequence("F1"), self)
         help_sc.activated.connect(self._show_shortcuts_help)
 
+        reset_window_sc = QShortcut(QKeySequence("Ctrl+0"), self)
+        reset_window_sc.activated.connect(self._reset_window_placement)
+
+        fullscreen_sc = QShortcut(QKeySequence("F11"), self)
+        fullscreen_sc.activated.connect(self._toggle_fullscreen)
+
     def _show_shortcuts_help(self) -> None:
         """Tüm klavye kısayollarını gösteren yardım dialog'u."""
         html = """
@@ -175,6 +180,8 @@ class MainWindow(QMainWindow):
         <table cellspacing="6" cellpadding="2">
           <tr><th align="left">Tuş</th><th align="left">İşlem</th></tr>
           <tr><td><b>Ctrl+1..6</b></td><td>Sekmeler arası geçiş</td></tr>
+          <tr><td><b>Ctrl+0</b></td><td>Pencere boyutunu ve konumunu sıfırla</td></tr>
+          <tr><td><b>F11</b></td><td>Tam ekran aç/kapat</td></tr>
           <tr><td><b>F1</b></td><td>Bu yardım penceresi</td></tr>
           <tr><td><b>F5</b></td><td>Listeyi yenile</td></tr>
           <tr><td colspan="2"><i>—— Siparişler sekmesi ——</i></td></tr>
@@ -193,6 +200,49 @@ class MainWindow(QMainWindow):
         </table>
         """
         QMessageBox.information(self, "Klavye Kısayolları", html)
+
+    def _window_settings(self) -> QSettings:
+        return QSettings("SiparisAsistani", config.APP_NAME)
+
+    def _restore_window_placement(self) -> None:
+        settings = self._window_settings()
+        geometry = settings.value("main_window/geometry")
+        state = settings.value("main_window/state")
+        maximized = settings.value("main_window/maximized", False, type=bool)
+        restored = False
+        if geometry is not None:
+            restored = self.restoreGeometry(geometry)
+        if state is not None:
+            self.restoreState(state)
+        if not restored:
+            fit_to_screen(self, 1400, 900)
+        keep_widget_on_screen(self)
+        if maximized:
+            self.showMaximized()
+
+    def _save_window_placement(self) -> None:
+        if self.isFullScreen():
+            self.showNormal()
+        settings = self._window_settings()
+        settings.setValue("main_window/geometry", self.saveGeometry())
+        settings.setValue("main_window/state", self.saveState())
+        settings.setValue("main_window/maximized", self.isMaximized())
+
+    def _reset_window_placement(self) -> None:
+        settings = self._window_settings()
+        settings.remove("main_window/geometry")
+        settings.remove("main_window/state")
+        settings.remove("main_window/maximized")
+        self.showNormal()
+        fit_to_screen(self, 1400, 900)
+        self.status_bar.showMessage("Pencere boyutu ve konumu sıfırlandı", 4000)
+
+    def _toggle_fullscreen(self) -> None:
+        if self.isFullScreen():
+            self.showNormal()
+            keep_widget_on_screen(self)
+        else:
+            self.showFullScreen()
 
     # ==================================================================
     # Olay yöneticileri
@@ -653,6 +703,7 @@ class MainWindow(QMainWindow):
     # Kapanış
     # ==================================================================
     def closeEvent(self, event):  # noqa: N802 - Qt API
+        self._save_window_placement()
         # Realtime listener'ı temiz bir şekilde durdur
         self._stop_listener()
         # Tüm popup'ları kapat

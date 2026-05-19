@@ -82,7 +82,7 @@ class SettingsPanel(QWidget):
         theme_box = QGroupBox("🎨 Tema")
         self.theme_combo = QComboBox()
         for name in themes.list_theme_names():
-            self.theme_combo.addItem(name.title(), name)
+            self.theme_combo.addItem(themes.theme_label(name), name)
         self.theme_combo.currentIndexChanged.connect(self._apply_theme)
         theme_layout = QHBoxLayout()
         theme_layout.addWidget(QLabel("Tema:"))

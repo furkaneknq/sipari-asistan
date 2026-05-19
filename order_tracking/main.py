@@ -63,6 +63,7 @@ def _show_connection_error(message: str) -> str:
 
 def main() -> int:
     app = QApplication(sys.argv)
+    app.setOrganizationName("SiparisAsistani")
     app.setApplicationName(config.APP_NAME)
     app.setApplicationVersion(config.APP_VERSION)
 
