@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any
 
-from PyQt6.QtCore import QDate, Qt, pyqtSignal
+from PyQt6.QtCore import QDate, QObject, Qt, QRunnable, QThreadPool, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QAction, QFont, QKeySequence
 from PyQt6.QtWidgets import (
     QCalendarWidget,
@@ -38,6 +38,33 @@ from database import couriers_db, customers_db, orders_db, products_db
 from ui.order_detail_dialog import _ClearOnZeroSpinBox
 from database.orders_db import STATUS_DELIVERED, STATUS_NEW
 from utils.helpers import format_currency, format_phone, parse_iso_datetime
+
+
+# ---------------------------------------------------------------------------
+# Arka plan DB yazıcısı (UI thread'ini bloke etmez)
+# ---------------------------------------------------------------------------
+
+class _WorkerSignals(QObject):
+    error = pyqtSignal(str)
+
+
+class _DbWriteWorker(QRunnable):
+    """Verilen callable'u global thread pool'da çalıştırır."""
+
+    def __init__(self, fn, *args, **kwargs):
+        super().__init__()
+        self._fn = fn
+        self._args = args
+        self._kwargs = kwargs
+        self.signals = _WorkerSignals()
+        self.setAutoDelete(True)
+
+    @pyqtSlot()
+    def run(self):
+        try:
+            self._fn(*self._args, **self._kwargs)
+        except Exception as exc:  # noqa: BLE001
+            self.signals.error.emit(str(exc))
 
 
 PAYMENT_LABELS = {
@@ -763,13 +790,8 @@ class OrdersPanel(QWidget):
             return
         spin.setProperty("_last_saved", new_paid)
 
-        # DB'ye yaz, payment_status otomatik türetilir
-        try:
-            orders_db.set_paid_amount(order_id, new_paid, order_total)
-        except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "Ödeme Kayıt Hatası", str(exc))
-            return
-        self._skip_next_refresh = True  # polling refresh'i atla
+        # Önce UI'yı güncelle (donma yok)
+        self._skip_next_refresh = True
 
         # Lokal cache + sıralama item'ı güncelle
         for order in self._current_orders:
@@ -790,6 +812,15 @@ class OrdersPanel(QWidget):
         self._refresh_paid_sort_value(order_id, new_paid)
         self._recalculate_summary()
 
+        # DB'ye arka planda yaz (UI thread'ini bloke etmez)
+        worker = _DbWriteWorker(
+            orders_db.set_paid_amount, order_id, new_paid, order_total
+        )
+        worker.signals.error.connect(
+            lambda msg: QMessageBox.critical(self, "Ödeme Kayıt Hatası", msg)
+        )
+        QThreadPool.globalInstance().start(worker)
+
     def _refresh_paid_sort_value(self, order_id: str, new_paid: float) -> None:
         """Sıralama için arka plandaki NumericItem'ın değerini günceller."""
         for row in range(self.orders_table.rowCount()):
@@ -803,16 +834,17 @@ class OrdersPanel(QWidget):
                 break
 
     def _recalculate_summary(self) -> None:
-        """Tablo altındaki toplam kutularını yeniden hesaplar (refresh yapmadan)."""
+        """Tablo altındaki toplam kutularını yeniden hesaplar (refresh yapmadan).
+
+        NOT: DB sorgusu YAPILMAZ — mevcut _items_cache ve lokal order verisinden hesaplanır.
+        """
         total_qty = 0.0
         total_amt = 0.0
         total_paid = 0.0
         for order in self._current_orders:
-            try:
-                summary = orders_db.order_items_summary(order.get("id"))
-                total_qty += summary.get("quantity", 0)
-            except Exception:  # noqa: BLE001
-                pass
+            oid = order.get("id")
+            summary = self._items_cache.get(oid, {})
+            total_qty += summary.get("quantity", 0)
             total_amt += float(order.get("total_amount") or 0)
             paid_val = order.get("paid_amount")
             if paid_val is None:
@@ -861,12 +893,8 @@ class OrdersPanel(QWidget):
             return
         spin.setProperty("_last_saved", new_amount)
 
-        try:
-            orders_db.update_order_payment(order_id, total_amount=new_amount)
-        except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "Tutar Kayıt Hatası", str(exc))
-            return
-        self._skip_next_refresh = True  # polling refresh'i atla
+        # Önce UI'yı güncelle (donma yok)
+        self._skip_next_refresh = True
 
         # Lokal cache güncelle
         for order in self._current_orders:
@@ -892,6 +920,15 @@ class OrdersPanel(QWidget):
                 break
 
         self._recalculate_summary()
+
+        # DB'ye arka planda yaz (UI thread'ini bloke etmez)
+        worker = _DbWriteWorker(
+            orders_db.update_order_payment, order_id, total_amount=new_amount
+        )
+        worker.signals.error.connect(
+            lambda msg: QMessageBox.critical(self, "Tutar Kayıt Hatası", msg)
+        )
+        QThreadPool.globalInstance().start(worker)
 
     @staticmethod
     def _status_label(order: dict[str, Any]) -> str:
