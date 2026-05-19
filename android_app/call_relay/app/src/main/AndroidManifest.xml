@@ -25,6 +25,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Bildirim çubuğunda foreground service göstermek için -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- WhatsApp arama bildirimlerini yakalamak için (NotificationListenerService) -->
+    <uses-permission android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" />
 
     <!-- Telefonu olmayan tabletleri filtrele (Play Store) -->
     <uses-feature
@@ -79,6 +81,17 @@
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
         </receiver>
+
+        <!-- WhatsApp arama bildirimlerini yakalayan NotificationListenerService.
+             Kullanıcı Android Ayarlar → Bildirim Erişimi'nden etkinleştirmeli. -->
+        <service
+            android:name=".service.WhatsAppCallListener"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
 
         <!-- Manifest tabanlı arama dinleyicisi.
              android.intent.action.PHONE_STATE Android 8+ implicit broadcast

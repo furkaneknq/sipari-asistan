@@ -100,6 +100,40 @@ Android 8+ pil optimizasyonu servisinin uzun süre çalışmasına engel olur. �
 - **Samsung One UI**: Pil ve cihaz bakımı → Pil → Arka plan kullanımı sınırları → "Asla uyutma"
 - **Huawei**: Telefon yöneticisi → Otomatik başlat → Arama Aktarım → 3 maddeyi de aç
 
+## WhatsApp Arama Yakalama
+
+v1.1.0 ile WhatsApp (ve WhatsApp Business) gelen aramaları da otomatik olarak
+`incoming_calls` tablosuna yazılır.
+
+### Nasıl çalışır?
+
+`WhatsAppCallListener` bir `NotificationListenerService`'tir. Android, bildirim
+erişimi açık olan uygulamalara tüm bildirimleri iletir. Bu servis:
+
+1. WhatsApp paketinden (`com.whatsapp` / `com.whatsapp.w4b`) gelen bildirimleri filtreler
+2. Bildirim metninde "arama" / "call" anahtar kelimesi ararlar
+3. Telefon numarasını bildirimden çıkarır (regex ile)
+4. Mevcut `CallRepository` altyapısıyla Supabase'e yazar
+
+### Etkinleştirme
+
+1. APK'yı güncelle ve yükle
+2. Uygulamayı aç → "📱 WhatsApp Arama Yakalama" uyarısı görünecek
+3. **"Bildirim Erişimini Aç"** butonuna bas → Android Ayarları açılır
+4. **"Arama Aktarım"** uygulamasını bul → **AÇ**
+5. Uygulamaya dön → uyarı kaybolur
+
+> ⚠ Bu izin hassas bir izindir. Uygulama sadece WhatsApp paketinden gelen
+> arama bildirimlerini okur; mesaj içeriğini kaydetmez.
+
+### Sınırlamalar
+
+- Numara bildirim metninde görünmüyorsa (sadece isim varsa) yakalanmaz
+- Aynı numara 10 saniye içinde tekrar bildirilmez (dedup)
+- WhatsApp bildirimini engelleyen "Rahatsız Etmeyin" modu aktifse çalışmaz
+
+---
+
 ## Davranış
 
 ### Çalışma akışı

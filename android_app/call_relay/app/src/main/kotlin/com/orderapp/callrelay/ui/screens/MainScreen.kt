@@ -64,6 +64,7 @@ fun MainScreen(
     onOpenSetup: () -> Unit,
     onRequestPermissions: () -> Unit,
     onOpenAppSettings: () -> Unit,
+    onOpenNotificationListenerSettings: () -> Unit,
     onResyncPending: () -> Unit,
     onSendTestCall: (String?) -> Unit,
     onDismissTestFeedback: () -> Unit
@@ -100,6 +101,13 @@ fun MainScreen(
                     hardDenied = state.permissionsDeniedHard,
                     onRequest = onRequestPermissions,
                     onOpenSettings = onOpenAppSettings
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+
+            if (!state.notificationListenerEnabled) {
+                WhatsAppWarningCard(
+                    onOpenSettings = onOpenNotificationListenerSettings
                 )
                 Spacer(Modifier.height(12.dp))
             }
@@ -221,6 +229,38 @@ private fun StatusDot(active: Boolean) {
             .clip(RoundedCornerShape(50))
             .background(if (active) SuccessGreen else ErrorRed)
     )
+}
+
+@Composable
+private fun WhatsAppWarningCard(
+    onOpenSettings: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "📱 WhatsApp Arama Yakalama",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "WhatsApp aramalarını yakalayabilmek için Bildirim Erişimi iznini açmalısın. " +
+                    "Bu izin açıkken WhatsApp gelen aramaları da otomatik olarak kaydedilir."
+            )
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick = onOpenSettings,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Bildirim Erişimini Aç")
+            }
+        }
+    }
 }
 
 @Composable

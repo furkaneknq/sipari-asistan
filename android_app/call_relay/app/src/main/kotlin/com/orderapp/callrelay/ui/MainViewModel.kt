@@ -23,6 +23,7 @@ data class MainUiState(
     val isServiceEnabled: Boolean = false,
     val permissionsOk: Boolean = false,
     val permissionsDeniedHard: Boolean = false,
+    val notificationListenerEnabled: Boolean = false,
     val recentCalls: List<CallEntity> = emptyList(),
     val testInProgress: Boolean = false,
     val testFeedback: TestCallFeedback? = null
@@ -65,6 +66,10 @@ class MainViewModel(
 
     fun checkPermissions(granted: Boolean) {
         _uiState.update { it.copy(permissionsOk = granted, permissionsDeniedHard = false) }
+    }
+
+    fun checkNotificationListenerEnabled(enabled: Boolean) {
+        _uiState.update { it.copy(notificationListenerEnabled = enabled) }
     }
 
     fun onPermissionsGranted() {

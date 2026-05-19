@@ -1,6 +1,7 @@
 package com.orderapp.callrelay.ui
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -14,9 +15,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.orderapp.callrelay.CallRelayApp
 import com.orderapp.callrelay.service.CallMonitorService
+import com.orderapp.callrelay.service.WhatsAppCallListener
 import com.orderapp.callrelay.ui.screens.MainScreen
 import com.orderapp.callrelay.ui.theme.CallRelayTheme
 import kotlinx.coroutines.flow.first
@@ -82,6 +85,7 @@ class MainActivity : ComponentActivity() {
                     },
                     onRequestPermissions = { permissionLauncher.launch(requiredPermissions) },
                     onOpenAppSettings = ::openAppSettings,
+                    onOpenNotificationListenerSettings = ::openNotificationListenerSettings,
                     onResyncPending = viewModel::resyncPending,
                     onSendTestCall = viewModel::sendTestCall,
                     onDismissTestFeedback = viewModel::clearTestFeedback
@@ -91,11 +95,13 @@ class MainActivity : ComponentActivity() {
 
         // Sayfa açıldığında izinleri kontrol et
         viewModel.checkPermissions(allPermissionsGranted())
+        viewModel.checkNotificationListenerEnabled(isNotificationListenerEnabled())
     }
 
     override fun onResume() {
         super.onResume()
         viewModel.checkPermissions(allPermissionsGranted())
+        viewModel.checkNotificationListenerEnabled(isNotificationListenerEnabled())
     }
 
     private fun onToggleService(turnOn: Boolean) {
@@ -133,5 +139,28 @@ class MainActivity : ComponentActivity() {
             data = Uri.fromParts("package", packageName, null)
         }
         startActivity(intent)
+    }
+
+    /**
+     * Bildirim Erişimi (NotificationListenerService) aktif mi kontrol eder.
+     * WhatsApp arama yakalama için gereklidir.
+     */
+    private fun isNotificationListenerEnabled(): Boolean {
+        val cn = ComponentName(this, WhatsAppCallListener::class.java)
+        val enabledListeners = NotificationManagerCompat.getEnabledListenerPackages(this)
+        return packageName in enabledListeners
+    }
+
+    private fun openNotificationListenerSettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        } catch (_: Exception) {
+            // Bazı cihazlarda bu intent desteklenmeyebilir
+            Toast.makeText(
+                this,
+                "Ayarlar → Bildirim Erişimi → Arama Aktarım'ı açın",
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 }
