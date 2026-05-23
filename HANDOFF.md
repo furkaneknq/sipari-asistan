@@ -423,7 +423,24 @@ Sipariş dialog'unda checkbox ile aktive edilir. Misafir adı (zorunlu) + telefo
 12. **Online ödeme entegrasyonu**
 13. **Kurye konum haritası** (live tracking)
 14. **Adisyon önizlemesini PDF olarak da kaydet**
-15. **Otomatik yedekleme** (DB dump → S3 / Drive)
+15. ~~**Otomatik yedekleme** (DB dump → S3 / Drive)~~ ✅ Tamamlandı (v1.0.16 — `database/backup_manager.py`, günlük otomatik + elle yedek + geri yükleme)
+
+### 🔵 Yeni — Admin Telefon Uygulaması
+
+16. **Android Admin Panel uygulaması** (`android_app/admin_panel/`)
+    Bilgisayar başında değilken sipariş yönetimi için hafif mobil uygulama.
+    Aynı Supabase veritabanını kullanır. Kotlin + Jetpack Compose.
+
+    **Ekranlar:**
+    - **📞 Gelen Aramalar** — Son aramaların listesi, müşteri eşleşmesi, aramadan sipariş oluşturma
+    - **📋 Siparişler** — Bugünün siparişleri, durum/kurye filtreleme, durum değiştirme, kurye atama
+    - **➕ Sipariş Oluştur/Düzenle** — Müşteri seç (aranabilir), ürün ekle (kategori→ürün), kurye ata, adres seç, not ekle, kaydet
+
+    **Teknik notlar:**
+    - Supabase REST API (service_role key)
+    - Mevcut `courier_tracker` yapısı referans alınabilir (Retrofit + Room + MVVM)
+    - Gelen aramalar `incoming_calls` tablosundan okunur
+    - Offline desteğe gerek yok (her zaman internete bağlı varsayılır)
 
 ---
 
