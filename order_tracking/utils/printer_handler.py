@@ -34,6 +34,7 @@ class _WinRawPrinter:
         win32print.StartDocPrinter(self._handle, 1, ("ESC/POS", None, "RAW"))
         win32print.StartPagePrinter(self._handle)
         self._buf = bytearray()
+        self._init_turkish()  # CP857 codepage'i hemen ayarla
 
     # ---- escpos uyumlu minimal API ----
     def set(self, **_kw) -> None:  # noqa: D401

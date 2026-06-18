@@ -567,6 +567,8 @@ class MainWindow(QMainWindow):
             build_customer_receipt_text,
             show_receipt_preview,
             _get_printer,
+            _init_printer,
+            _send_text,
         )
 
         settings = self._get_settings()
@@ -641,16 +643,11 @@ class MainWindow(QMainWindow):
             return
 
         try:
+            _init_printer(printer)
             for i, data in enumerate(all_data):
                 text = build_customer_receipt_text(data)
-                printer.set(align="left", font="a", bold=False, width=1, height=1)
                 for line in text.split("\n"):
-                    if line.startswith("TOPLAM:"):
-                        printer.set(bold=True, width=2, height=2)
-                        printer.text(line + "\n")
-                        printer.set(bold=False, width=1, height=1)
-                    else:
-                        printer.text(line + "\n")
+                    _send_text(printer, line + "\n")
                 printer.cut()
             printer.close()
         except Exception as exc:  # noqa: BLE001
