@@ -1,0 +1,90 @@
+================================================================
+  SIPARIS ASISTANI - WINDOWS KURULUM
+  Bu ZIP icindeki tek dosyaya cift tiklamak yeterli.
+================================================================
+
+ON HAZIRLIK (sadece tek seferlik, eger yuklu degilse)
+----------------------------------------------------------------
+
+1. PYTHON 3.11 veya 3.12 (3.13/3.14 onerilmez)
+     https://www.python.org/downloads/windows/
+     >>>> Kurarken "Add Python to PATH" kutusunu MUTLAKA isaretle <<<<
+
+2. INNO SETUP 6 (kurulum .exe uretmek icin)
+     https://jrsoftware.org/isdl.php
+     Varsayilan ayarlarla "Install" -> tamam.
+
+KURULUM ADIMLARI
+----------------------------------------------------------------
+
+1. Bu ZIP'i C:\Proje\ veya Masaustu gibi BOSLUKSUZ bir yere ac.
+   Yapinin sonunda soyle gorunmesi lazim:
+
+     Proje\
+       installer\windows\BUILD_BURAYA_CIFT_TIKLA.bat   <-- buna tikla
+       installer\windows\build.bat
+       installer\windows\order_tracking.spec
+       order_tracking\main.py
+       order_tracking\requirements.txt
+       order_tracking\config.py
+       order_tracking\ui\
+       order_tracking\database\
+       database\sql\*.sql
+
+2. installer\windows\ klasorune git.
+
+3. >>>> BUILD_BURAYA_CIFT_TIKLA.bat <<<< dosyasina cift tikla.
+   Bir komut penceresi acilacak. Su adimlar gecer:
+
+     [0/6] Klasor yapisi kontrol ediliyor...    OK
+     [1/6] Python aranyor...                   OK: py -3
+     [2/6] Sanal ortam: ...
+     [3/6] requirements.txt yukleniyor (5-10 dk surebilir)...
+     [3/6] PyInstaller ve Pillow yukleniyor...
+     [4/6] Uygulama ikonu uretiliyor...
+     [5/6] PyInstaller ile EXE derleniyor...
+     [6/6] Inno Setup araniyor...                OK
+     ============================================================
+       BASARILI! Kurulum dosyasi:
+       ...installer\windows\Output\SiparisAsistaniSetup.exe
+     ============================================================
+
+4. SiparisAsistaniSetup.exe'yi cift tikla -> Yes -> Kur.
+   Kurulum sonunda Notepad acilir, .env dosyasini duzenle:
+
+     SUPABASE_URL=https://XXXX.supabase.co
+     SUPABASE_SECRET_KEY=eyJ...                (service_role key)
+     PRINTER_TYPE=dummy                        (usb / network / serial / dummy)
+
+   Kaydet, kapat. "Siparis Asistanini simdi baslat" isaretini
+   birak, program acilir.
+
+SORUN GIDERME
+----------------------------------------------------------------
+
+* Pencere acilip kapaniyor:
+    BUILD_BURAYA_CIFT_TIKLA.bat'i kullan, build.bat'i degil.
+
+* "Python bulunamadi":
+    Python kurarken "Add Python to PATH"i unuttun. Kaldir + tekrar kur.
+
+* "Microsoft Visual C++ 14.0 or greater is required":
+    requirements.txt eski. ZIP'i tamamen yeniden ac.
+
+* "main.py not found":
+    ZIP eksik acildi veya dosyalar farkli yerde. KURULUM ADIMLARI #1'deki
+    klasor yapisini kontrol et. order_tracking ve installer klasorleri
+    AYNI ust dizinde olmali.
+
+* "Inno Setup yuklu degil":
+    https://jrsoftware.org/isdl.php adresinden kur, betigi tekrar calistir.
+
+* PyInstaller cok yavas / antivirus engelliyor:
+    Defender / Avast / AVG geçici olarak Proje klasorunu istisna listesine ekle.
+
+DETAYLI BELGELEME
+----------------------------------------------------------------
+
+  installer\windows\README.md   - Build sureci ve mimari detaylar
+  order_tracking\README.md      - Masaustu uygulama kullanim klavuzu
+  database\sql\README varsa     - SQL migration sirasi

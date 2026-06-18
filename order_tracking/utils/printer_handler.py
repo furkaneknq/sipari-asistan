@@ -17,6 +17,59 @@ import config
 
 
 # =====================================================================
+# TÜRKÇE CODEPAGE AYARLARI
+# =====================================================================
+#
+# ESC/POS yazıcılarda Türkçe karakter desteği için CP857 codepage'i
+# kullanılır. Ancak ESC t n komutundaki 'n' değeri yazıcı üreticisine
+# göre değişir:
+#
+#   n=29 (0x1D) — Xprinter (XP-80C), çoğu Çin yapımı yazıcı
+#   n=12 (0x0C) — Epson TM serisi
+#   n=8  (0x08) — Datecs
+#   n=37 (0x25) — Bazı Star/Bixolon modelleri
+#
+# .env dosyasında PRINTER_CODEPAGE ile özelleştirilebilir.
+# Varsayılan: otomatik (sırasıyla 29, 12, 37, 8 dener)
+
+# Codepage numarası .env'den okunur, yoksa None = otomatik dene
+_CODEPAGE_NUM: int | None = None
+_raw_cp = getattr(config, "PRINTER_CODEPAGE_NUM", None) or ""
+if isinstance(_raw_cp, str):
+    _raw_cp = _raw_cp.strip()
+if _raw_cp:
+    try:
+        _CODEPAGE_NUM = int(_raw_cp, 0)  # 0x1D veya 29 gibi değerler
+    except (ValueError, TypeError):
+        _CODEPAGE_NUM = None
+
+# Otomatik denemede kullanılacak sıra (en yaygından aza)
+_CP857_CANDIDATES: list[int] = [29, 12, 37, 8]
+
+# Python encoding adı (.env ile değiştirilebilir: cp857 / cp1254)
+_PYTHON_ENCODING: str = getattr(config, "PRINTER_ENCODING", None) or "cp857"
+
+
+def _build_codepage_init_bytes() -> bytes:
+    """ESC/POS başlatma komutları: reset + Türkçe codepage seç."""
+    buf = bytearray()
+    buf.extend(b"\x1b\x40")  # ESC @ = reset
+
+    if _CODEPAGE_NUM is not None:
+        # Kullanıcı belirli bir numara seçmiş
+        buf.extend(b"\x1b\x74")
+        buf.append(_CODEPAGE_NUM & 0xFF)
+    else:
+        # Otomatik: tüm olası CP857 numaralarını sırayla gönder.
+        # Yazıcı tanımadığı numarayı sessizce yok sayar, tanıdığını uygular.
+        for n in _CP857_CANDIDATES:
+            buf.extend(b"\x1b\x74")
+            buf.append(n & 0xFF)
+
+    return bytes(buf)
+
+
+# =====================================================================
 # YAZDIRICI BAĞLANTISI
 # =====================================================================
 
@@ -34,19 +87,19 @@ class _WinRawPrinter:
         win32print.StartDocPrinter(self._handle, 1, ("ESC/POS", None, "RAW"))
         win32print.StartPagePrinter(self._handle)
         self._buf = bytearray()
-        self._init_turkish()  # CP857 codepage'i hemen ayarla
+        # Yazıcıyı başlat: reset + Türkçe codepage
+        self._buf.extend(_build_codepage_init_bytes())
 
     # ---- escpos uyumlu minimal API ----
     def set(self, **_kw) -> None:  # noqa: D401
         """Bold/size komutları — şimdilik yok sayılıyor."""
 
     def text(self, txt: str) -> None:
-        self._buf.extend(txt.encode("cp857", errors="replace"))
+        self._buf.extend(txt.encode(_PYTHON_ENCODING, errors="replace"))
 
-    def _init_turkish(self) -> None:
-        """ESC/POS Türkçe codepage ayarı (CP857)."""
-        self._buf.extend(b"\x1b\x40")       # ESC @ = reset
-        self._buf.extend(b"\x1b\x74\x0c")   # ESC t 12 = CP857 (Turkish)
+    def _raw(self, data: bytes) -> None:
+        """Ham ESC/POS bytes gönder."""
+        self._buf.extend(data)
 
     def cut(self) -> None:
         self._buf.extend(b"\n\n\n\x1d\x56\x00")  # GS V 0 = tam kesim
@@ -158,6 +211,52 @@ def _fmt_currency(amount) -> str:
 
 
 # =====================================================================
+# ORTAK YAZDIRMA YARDIMCILARI
+# =====================================================================
+
+def _normalize_turkish(text: str) -> str:
+    """Türkçe karakterleri İngilizce karşılıklarına dönüştürür (ç->c vb.)."""
+    charmap = {
+        'ç': 'c', 'Ç': 'C',
+        'ğ': 'g', 'Ğ': 'G',
+        'ı': 'i', 'İ': 'I',
+        'ö': 'o', 'Ö': 'O',
+        'ş': 's', 'Ş': 'S',
+        'ü': 'u', 'Ü': 'U'
+    }
+    for tr, en in charmap.items():
+        text = text.replace(tr, en)
+    return text
+
+
+def _send_text(printer, text: str) -> None:
+    """Türkçe karakterleri doğru göndermek için ortak yazdırma fonksiyonu.
+
+    Tüm yazıcı tiplerine aynı encoding ile gönderir:
+    - _WinRawPrinter: text() zaten doğru encoding kullanır.
+    - escpos (USB/Network): _raw() ile bytes gönderir (kendi encoding'ini bypass).
+    """
+    if getattr(config, "PRINTER_ASCII_FALLBACK", True):
+        text = _normalize_turkish(text)
+
+    if isinstance(printer, _WinRawPrinter):
+        printer.text(text)
+    else:
+        # python-escpos: raw bytes gönder (kendi encoding'ini bypass et)
+        printer._raw(text.encode(_PYTHON_ENCODING, errors="replace"))
+
+
+def _init_printer(printer) -> None:
+    """Yazıcıyı başlat: reset + Türkçe codepage ayarla."""
+    init_bytes = _build_codepage_init_bytes()
+    if isinstance(printer, _WinRawPrinter):
+        printer._raw(init_bytes)
+    else:
+        # escpos (USB/Network)
+        printer._raw(init_bytes)
+
+
+# =====================================================================
 # FORMAT 1: MÜŞTERİ FİŞİ
 # =====================================================================
 
@@ -233,47 +332,6 @@ def build_customer_receipt_text(order_data: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _send_text(printer, text: str) -> None:
-    """Türkçe karakterleri doğru göndermek için ortak yazdırma fonksiyonu.
-
-    - _WinRawPrinter: zaten _init_turkish() ile CP857 ayarlı, text() CP857 encode eder.
-    - escpos (USB/Network): _raw() ile CP857 codepage set edip bytes gönderir.
-    """
-    if isinstance(printer, _WinRawPrinter):
-        # Windows: _init_turkish zaten çağrıldı, text() CP857 encode eder
-        printer.text(text)
-    else:
-        # python-escpos: raw bytes gönder (kendi encoding'ini bypass et)
-        printer._raw(text.encode("cp857", errors="replace"))
-
-
-def _init_printer(printer) -> None:
-    """Yazıcıyı başlat: reset + CP857 codepage ayarla."""
-    if isinstance(printer, _WinRawPrinter):
-        printer._init_turkish()
-    else:
-        # escpos (USB/Network): ESC @ reset + ESC t 12 = CP857
-        printer._raw(b"\x1b\x40")       # reset
-        printer._raw(b"\x1b\x74\x0c")   # CP857 Turkish codepage
-
-
-def print_customer_receipt(order_data: dict[str, Any]) -> tuple[bool, str]:
-    """Müşteri fişini yazıcıya gönderir."""
-    text = build_customer_receipt_text(order_data)
-    printer = _get_printer()
-    if printer is None:
-        return False, "Yazıcı bulunamadı veya dummy modda."
-    try:
-        _init_printer(printer)
-        for line in text.split("\n"):
-            _send_text(printer, line + "\n")
-        printer.cut()
-        printer.close()
-        return True, "Müşteri fişi yazdırıldı."
-    except Exception as e:  # noqa: BLE001
-        return False, f"Yazıcı hatası: {e}"
-
-
 # =====================================================================
 # FORMAT 2: HAZIRLAMA FİŞİ
 # =====================================================================
@@ -309,6 +367,23 @@ def build_preparation_receipt_text(selected_orders: list[dict[str, Any]]) -> str
 
     lines.append("=" * WIDTH)
     return "\n".join(lines)
+
+
+def print_customer_receipt(order_data: dict[str, Any]) -> tuple[bool, str]:
+    """Müşteri fişini yazıcıya gönderir."""
+    text = build_customer_receipt_text(order_data)
+    printer = _get_printer()
+    if printer is None:
+        return False, "Yazıcı bulunamadı veya dummy modda."
+    try:
+        _init_printer(printer)
+        for line in text.split("\n"):
+            _send_text(printer, line + "\n")
+        printer.cut()
+        printer.close()
+        return True, "Müşteri fişi yazdırıldı."
+    except Exception as e:  # noqa: BLE001
+        return False, f"Yazıcı hatası: {e}"
 
 
 def print_preparation_receipt(selected_orders: list[dict[str, Any]]) -> tuple[bool, str]:

@@ -1,0 +1,377 @@
+version: "2"
+type: backend
+tech_stack:
+  - Python 3.14
+  - PyQt6 (Desktop GUI)
+  - Supabase (PostgreSQL + REST API)
+  - httpx (HTTP client)
+  - python-escpos (Thermal printer)
+features:
+  - name: Customer Management
+    description: CRUD operations for customers with phone-based lookup and guest support
+    files:
+      - database/customers_db.py
+      - ui/customers_panel.py
+    endpoints:
+      - method: GET
+        path: /rest/v1/customers
+        description: List all customers with optional search and pagination
+        auth_required: true
+        response_schema:
+          "200": Customer[]
+      - method: GET
+        path: /rest/v1/customers?id=eq.{id}
+        description: Get a single customer by ID
+        auth_required: true
+        response_schema:
+          "200": Customer
+      - method: POST
+        path: /rest/v1/customers
+        description: Create a new customer
+        auth_required: true
+        request_schema:
+          body:
+            name: string
+            phone: string
+            email: string|null
+            notes: string|null
+            is_guest: boolean
+        response_schema:
+          "201": Customer
+          "409": Duplicate phone conflict
+      - method: PATCH
+        path: /rest/v1/customers?id=eq.{id}
+        description: Update customer details
+        auth_required: true
+        request_schema:
+          body:
+            name: string
+            phone: string
+        response_schema:
+          "200": Customer
+      - method: DELETE
+        path: /rest/v1/customers?id=eq.{id}
+        description: Delete a customer
+        auth_required: true
+        response_schema:
+          "200": empty
+    depends_on: []
+
+  - name: Customer Address Management
+    description: CRUD for customer delivery addresses with default address support
+    files:
+      - database/customers_db.py
+    endpoints:
+      - method: GET
+        path: /rest/v1/customer_addresses?customer_id=eq.{id}
+        description: List addresses for a customer
+        auth_required: true
+        response_schema:
+          "200": Address[]
+      - method: POST
+        path: /rest/v1/customer_addresses
+        description: Create a new address for a customer
+        auth_required: true
+        request_schema:
+          body:
+            customer_id: uuid
+            title: string
+            address_text: string
+            latitude: float|null
+            longitude: float|null
+            is_default: boolean
+        response_schema:
+          "201": Address
+      - method: PATCH
+        path: /rest/v1/customer_addresses?id=eq.{id}
+        description: Update an address
+        auth_required: true
+        response_schema:
+          "200": Address
+      - method: DELETE
+        path: /rest/v1/customer_addresses?id=eq.{id}
+        description: Delete an address
+        auth_required: true
+        response_schema:
+          "200": empty
+    depends_on:
+      - Customer Management
+
+  - name: Order Management
+    description: Full order lifecycle - create, update status, assign courier, payment tracking
+    files:
+      - database/orders_db.py
+      - ui/orders_panel.py
+      - ui/order_detail_dialog.py
+    endpoints:
+      - method: GET
+        path: /rest/v1/orders
+        description: List orders with date/status/courier filters and customer joins
+        auth_required: true
+        response_schema:
+          "200": Order[]
+      - method: GET
+        path: /rest/v1/orders?id=eq.{id}
+        description: Get single order with customer, address, courier details
+        auth_required: true
+        response_schema:
+          "200": Order
+      - method: POST
+        path: /rest/v1/orders
+        description: Create a new order with items
+        auth_required: true
+        request_schema:
+          body:
+            customer_id: uuid
+            address_id: uuid|null
+            courier_id: uuid|null
+            status: string
+            order_date: date
+            payment_method: string
+            notes: string|null
+        response_schema:
+          "201": Order
+      - method: PATCH
+        path: /rest/v1/orders?id=eq.{id}
+        description: Update order status, payment, or courier assignment
+        auth_required: true
+        response_schema:
+          "200": Order
+      - method: DELETE
+        path: /rest/v1/orders?id=eq.{id}
+        description: Delete an order (cascades to order_items)
+        auth_required: true
+        response_schema:
+          "200": empty
+    depends_on:
+      - Customer Management
+      - Product Management
+      - Courier Management
+
+  - name: Order Items Management
+    description: CRUD for order line items linked to products
+    files:
+      - database/orders_db.py
+    endpoints:
+      - method: GET
+        path: /rest/v1/order_items?order_id=eq.{id}
+        description: List items for an order with product details
+        auth_required: true
+        response_schema:
+          "200": OrderItem[]
+      - method: POST
+        path: /rest/v1/order_items
+        description: Add items to an order (bulk insert)
+        auth_required: true
+        request_schema:
+          body:
+            order_id: uuid
+            product_id: uuid
+            quantity: float
+            unit: string
+            unit_price: float
+        response_schema:
+          "201": OrderItem[]
+      - method: DELETE
+        path: /rest/v1/order_items?order_id=eq.{id}
+        description: Delete all items for an order (used in replace operation)
+        auth_required: true
+        response_schema:
+          "200": empty
+    depends_on:
+      - Order Management
+
+  - name: Product Management
+    description: CRUD for products organized by categories
+    files:
+      - database/products_db.py
+      - ui/products_panel.py
+    endpoints:
+      - method: GET
+        path: /rest/v1/products
+        description: List products with category join, optional active filter
+        auth_required: true
+        response_schema:
+          "200": Product[]
+      - method: POST
+        path: /rest/v1/products
+        description: Create a new product
+        auth_required: true
+        request_schema:
+          body:
+            name: string
+            price: float
+            unit: string
+            category_id: uuid|null
+            sort_order: integer
+        response_schema:
+          "201": Product
+      - method: PATCH
+        path: /rest/v1/products?id=eq.{id}
+        description: Update product details
+        auth_required: true
+        response_schema:
+          "200": Product
+      - method: DELETE
+        path: /rest/v1/products?id=eq.{id}
+        description: Delete a product
+        auth_required: true
+        response_schema:
+          "200": empty
+    depends_on:
+      - Category Management
+
+  - name: Category Management
+    description: CRUD for product categories
+    files:
+      - database/products_db.py
+    endpoints:
+      - method: GET
+        path: /rest/v1/categories
+        description: List categories ordered by sort_order
+        auth_required: true
+        response_schema:
+          "200": Category[]
+      - method: POST
+        path: /rest/v1/categories
+        description: Create a new category
+        auth_required: true
+        request_schema:
+          body:
+            name: string
+            color: string|null
+            sort_order: integer
+        response_schema:
+          "201": Category
+      - method: PATCH
+        path: /rest/v1/categories?id=eq.{id}
+        description: Update category details
+        auth_required: true
+        response_schema:
+          "200": Category
+      - method: DELETE
+        path: /rest/v1/categories?id=eq.{id}
+        description: Delete a category
+        auth_required: true
+        response_schema:
+          "200": empty
+    depends_on: []
+
+  - name: Courier Management
+    description: CRUD for delivery couriers with active order tracking
+    files:
+      - database/couriers_db.py
+      - ui/couriers_panel.py
+    endpoints:
+      - method: GET
+        path: /rest/v1/couriers
+        description: List couriers with optional active-only filter
+        auth_required: true
+        response_schema:
+          "200": Courier[]
+      - method: POST
+        path: /rest/v1/couriers
+        description: Create a new courier
+        auth_required: true
+        request_schema:
+          body:
+            name: string
+            phone: string
+            password: string|null
+            is_active: boolean
+        response_schema:
+          "201": Courier
+      - method: PATCH
+        path: /rest/v1/couriers?id=eq.{id}
+        description: Update courier details
+        auth_required: true
+        response_schema:
+          "200": Courier
+      - method: DELETE
+        path: /rest/v1/couriers?id=eq.{id}
+        description: Delete a courier
+        auth_required: true
+        response_schema:
+          "200": empty
+    depends_on: []
+
+  - name: Incoming Calls Tracking
+    description: Track incoming phone calls, match to customers, mark processed
+    files:
+      - database/incoming_calls_db.py
+      - ui/incoming_calls_panel.py
+    endpoints:
+      - method: GET
+        path: /rest/v1/incoming_calls
+        description: List incoming calls with customer join and device name enrichment
+        auth_required: true
+        response_schema:
+          "200": IncomingCall[]
+      - method: PATCH
+        path: /rest/v1/incoming_calls?id=eq.{id}
+        description: Mark call as processed or unanswered
+        auth_required: true
+        request_schema:
+          body:
+            is_processed: boolean
+        response_schema:
+          "200": IncomingCall
+      - method: DELETE
+        path: /rest/v1/incoming_calls?id=eq.{id}
+        description: Delete a call record
+        auth_required: true
+        response_schema:
+          "200": empty
+    depends_on:
+      - Customer Management
+
+  - name: Courier App RPC
+    description: Supabase RPC functions for the courier mobile app
+    files:
+      - ../database/sql/08_courier_app_policies.sql
+      - ../database/sql/14_courier_save_address_location.sql
+    endpoints:
+      - method: POST
+        path: /rest/v1/rpc/courier_get_orders
+        description: Get today's orders for a courier (Turkey timezone)
+        auth_required: false
+        request_schema:
+          body:
+            p_courier_id: uuid
+        response_schema:
+          "200": JSON array of orders with customer, address, items
+      - method: POST
+        path: /rest/v1/rpc/courier_daily_summary
+        description: Get daily delivery summary for a courier
+        auth_required: false
+        request_schema:
+          body:
+            p_courier_id: uuid
+        response_schema:
+          "200": JSON with delivered_count, total_amount, paid_amount
+      - method: POST
+        path: /rest/v1/rpc/courier_save_address_location
+        description: Save GPS coordinates for a delivery address
+        auth_required: false
+        request_schema:
+          body:
+            p_address_id: uuid
+            p_courier_id: uuid
+            p_latitude: float
+            p_longitude: float
+        response_schema:
+          "200": JSON with success boolean
+    depends_on:
+      - Order Management
+      - Customer Address Management
+
+known_limitations:
+  - issue: Customer search uses client-side filtering for order list
+    location: database/orders_db.py
+    impact: Large result sets fetched before filtering by customer name
+  - issue: No input validation on phone number format during customer creation
+    location: database/customers_db.py
+    impact: Inconsistent phone formats in database
+  - issue: Order total calculated client-side with optional override
+    location: database/orders_db.py
+    impact: Possible mismatch between item totals and order total

@@ -72,6 +72,12 @@ PRINTER_NETWORK_HOST: str = os.getenv("PRINTER_NETWORK_HOST", "")
 PRINTER_NETWORK_PORT: int = int(os.getenv("PRINTER_NETWORK_PORT", "9100") or 9100)
 PRINTER_WIN_NAME: str = os.getenv("PRINTER_WIN_NAME", "")  # Windows yazıcı adı (ör: "XP-80C")
 PRINTER_PAPER_WIDTH: int = int(os.getenv("PRINTER_PAPER_WIDTH", "80") or 80)
+# Türkçe codepage numarası (ESC t n): 29=Xprinter, 12=Epson, 8=Datecs. Boş=otomatik
+PRINTER_CODEPAGE_NUM: str = os.getenv("PRINTER_CODEPAGE_NUM", "").strip()
+# Python encoding: cp857 (standart) veya cp1254 (Windows-1254 Türkçe)
+PRINTER_ENCODING: str = os.getenv("PRINTER_ENCODING", "cp857").strip() or "cp857"
+# Yazıcı donanımsal olarak Türkçe desteklemiyorsa harfleri ASCII'ye çevir (ç->c, ş->s)
+PRINTER_ASCII_FALLBACK: bool = os.getenv("PRINTER_ASCII_FALLBACK", "true").lower() in ("true", "1", "yes")
 
 # ---------- UI ----------
 APP_NAME: str = "Sipariş Takip Sistemi"

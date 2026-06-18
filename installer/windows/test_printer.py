@@ -17,9 +17,15 @@ try:
     srv.connect((HOST, PORT))
     print("Baglanti BASARILI!")
 
-    # Test yazisi gonder (ESC/POS reset + metin + kesim)
+    # Test yazisi gonder (ESC/POS reset + Turkce codepage + metin + kesim)
     test_data = b"\x1b\x40"              # ESC @ = reset
+
+    # Turkce codepage: tum olasi numaralari gonder (yazici tanimadigini yok sayar)
+    test_data += b"\x1b\x74\x1d"         # ESC t 29 = CP857 (Xprinter/Cin yapimi)
+    test_data += b"\x1b\x74\x0c"         # ESC t 12 = CP857 (Epson)
+
     test_data += "Yazici Testi OK!\n".encode("cp857")
+    test_data += "Turkce: cCgGiIoOsSuU\n".encode("cp857")
     test_data += b"\n\n\n"
     test_data += b"\x1d\x56\x00"         # GS V 0 = tam kesim
 
