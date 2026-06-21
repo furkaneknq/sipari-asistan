@@ -3,6 +3,8 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.hilt)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -15,6 +17,9 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
+
+        buildConfigField("String", "SUPABASE_URL", "\"https://xgvlgmikxchpttydtelb.supabase.co\"")
+        buildConfigField("String", "SUPABASE_SECRET_KEY", "\"sb_secret_ifcYo6gAkhIJ9NR_936R-g_ITqPSBJE\"")
     }
 
     buildTypes {
@@ -89,4 +94,9 @@ dependencies {
 
     // Test
     testImplementation("junit:junit:4.13.2")
+
+    // Hilt
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+    implementation(libs.androidx.hilt.navigation.compose)
 }
