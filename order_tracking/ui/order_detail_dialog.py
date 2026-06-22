@@ -80,6 +80,9 @@ class _ClearOnZeroSpinBox(QDoubleSpinBox):
             return ""
         return super().textFromValue(value)
 
+    def wheelEvent(self, event):  # noqa: N802
+        event.ignore()
+
 
 class OrderDetailDialog(QDialog):
     def __init__(

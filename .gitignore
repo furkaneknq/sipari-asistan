@@ -40,3 +40,5 @@ Proje-Windows.zip
 
 # Log
 *.log
+
+*.hprof

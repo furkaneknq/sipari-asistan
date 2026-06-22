@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import (
 )
 
 from database import customers_db
-from utils.helpers import format_phone, normalize_phone, parse_maps_link
+from utils.helpers import format_phone, normalize_phone, parse_maps_link, to_uppercase_tr
 
 
 class NewCustomerDialog(QDialog):
@@ -95,12 +95,12 @@ class NewCustomerDialog(QDialog):
 
     # ------------------------------------------------------------------
     def _on_save(self) -> None:
-        name = self.name_input.text().strip()
+        name = to_uppercase_tr(self.name_input.text().strip())
         phone_raw = self.phone_input.text().strip()
         email = self.email_input.text().strip() or None
-        notes = self.notes_input.toPlainText().strip() or None
-        address_text = self.address_input.toPlainText().strip()
-        address_title = self.address_title_input.text().strip() or "Ev"
+        notes = to_uppercase_tr(self.notes_input.toPlainText().strip()) or None
+        address_text = to_uppercase_tr(self.address_input.toPlainText().strip())
+        address_title = to_uppercase_tr(self.address_title_input.text().strip()) or "EV"
 
         if not name or not phone_raw:
             QMessageBox.warning(self, "Eksik Bilgi", "Ad Soyad ve Telefon zorunludur.")

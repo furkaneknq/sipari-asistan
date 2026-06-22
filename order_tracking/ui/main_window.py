@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from typing import Any
 
 from PyQt6.QtCore import QSettings, Qt, QTimer
-from PyQt6.QtGui import QGuiApplication, QKeySequence, QShortcut
+from PyQt6.QtGui import QGuiApplication, QIcon, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QApplication,
     QDialog,
@@ -44,6 +45,10 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(f"{config.APP_NAME} v{config.APP_VERSION}")
+        
+        icon_path = os.path.join(os.path.dirname(__file__), "..", "assets", "app.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
         self._popups: list[IncomingCallPopup] = []
         self._last_call_data: dict[str, Any] | None = None
@@ -143,7 +148,7 @@ class MainWindow(QMainWindow):
     # Realtime listener
     # ==================================================================
     def _start_listener(self) -> None:
-        self.listener = RealtimeListener(poll_interval_seconds=15.0)
+        self.listener = RealtimeListener(poll_interval_seconds=3.0)
         self.listener.incoming_call_received.connect(self._on_incoming_call)
         self.listener.orders_changed.connect(self._on_orders_changed)
         self.listener.customers_changed.connect(self._on_customers_changed)

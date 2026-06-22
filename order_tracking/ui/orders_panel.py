@@ -404,24 +404,48 @@ class OrdersPanel(QWidget):
         right_bottom_layout.addLayout(items_summary_row)
         right_bottom_layout.addWidget(self.order_notes_label)
 
-        right_split = QSplitter(Qt.Orientation.Vertical)
-        right_split.addWidget(right_top)
-        right_split.addWidget(right_bottom)
-        right_split.setStretchFactor(0, 3)
-        right_split.setStretchFactor(1, 2)
+        self.right_split = QSplitter(Qt.Orientation.Vertical)
+        self.right_split.setObjectName("orders_right_split")
+        self.right_split.addWidget(right_top)
+        self.right_split.addWidget(right_bottom)
+        self.right_split.setStretchFactor(0, 3)
+        self.right_split.setStretchFactor(1, 2)
 
         # Ana layout
-        main_split = QSplitter(Qt.Orientation.Horizontal)
-        main_split.addWidget(left_panel)
-        main_split.addWidget(right_split)
-        main_split.setStretchFactor(0, 0)
-        main_split.setStretchFactor(1, 1)
+        self.main_split = QSplitter(Qt.Orientation.Horizontal)
+        self.main_split.setObjectName("orders_main_split")
+        self.main_split.addWidget(left_panel)
+        self.main_split.addWidget(self.right_split)
+        self.main_split.setStretchFactor(0, 0)
+        self.main_split.setStretchFactor(1, 1)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(6, 6, 6, 6)
-        outer.addWidget(main_split)
+        outer.addWidget(self.main_split)
+
+        import config
+        from PyQt6.QtCore import QSettings
+        settings = QSettings("SiparisAsistani", config.APP_NAME)
+        
+        r_state = settings.value("orders_panel/right_split_state")
+        if r_state is not None:
+            self.right_split.restoreState(r_state)
+            
+        m_state = settings.value("orders_panel/main_split_state")
+        if m_state is not None:
+            self.main_split.restoreState(m_state)
+
+        self.right_split.splitterMoved.connect(self._save_splitters)
+        self.main_split.splitterMoved.connect(self._save_splitters)
 
         self._update_range_label()
+
+    def _save_splitters(self, *args) -> None:
+        import config
+        from PyQt6.QtCore import QSettings
+        settings = QSettings("SiparisAsistani", config.APP_NAME)
+        settings.setValue("orders_panel/right_split_state", self.right_split.saveState())
+        settings.setValue("orders_panel/main_split_state", self.main_split.saveState())
 
     def _make_summary_box(self, text: str) -> QLabel:
         lbl = QLabel(text)

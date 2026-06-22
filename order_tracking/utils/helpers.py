@@ -7,6 +7,13 @@ from datetime import datetime
 from decimal import Decimal
 
 
+def to_uppercase_tr(text: str | None) -> str:
+    """Türkçe karakterleri doğru büyüterek (i -> İ, ı -> I) metni büyük harfe çevirir."""
+    if not text:
+        return ""
+    return text.replace("i", "İ").replace("ı", "I").upper()
+
+
 def normalize_phone(phone: str) -> str:
     """Telefon numarasını sadece rakamlardan oluşan, son 10 haneli forma çevirir.
 
