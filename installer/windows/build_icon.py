@@ -35,15 +35,35 @@ def _make_image(size: int) -> Image.Image:
     draw.rounded_rectangle((0, 0, size - 1, size - 1), radius=radius, fill=PRIMARY)
 
     # Ortada büyük 'S' (sipariş)
-    try:
-        font = ImageFont.truetype("DejaVuSans-Bold.ttf", int(size * 0.62))
-    except OSError:
-        font = ImageFont.load_default()
+    # Ortada büyük 'S' (sipariş)
+    font = None
+    for font_name in ["arialbd.ttf", "arial.ttf", "segoeui.ttf", "calibri.ttf"]:
+        try:
+            font = ImageFont.truetype(font_name, int(size * 0.62))
+            break
+        except OSError:
+            continue
+            
+    if font is None:
+        try:
+            font = ImageFont.truetype("DejaVuSans-Bold.ttf", int(size * 0.62))
+        except OSError:
+            # En son çare (Pillow > 10.0'da size desteklenir)
+            try:
+                font = ImageFont.load_default(size=int(size * 0.62))
+            except TypeError:
+                font = ImageFont.load_default()
 
     text = "S"
-    bbox = draw.textbbox((0, 0), text, font=font)
-    tw = bbox[2] - bbox[0]
-    th = bbox[3] - bbox[1]
+    try:
+        bbox = draw.textbbox((0, 0), text, font=font)
+        tw = bbox[2] - bbox[0]
+        th = bbox[3] - bbox[1]
+    except AttributeError:
+        # Pillow eski sürüm fallback
+        tw, th = draw.textsize(text, font=font)
+        bbox = (0, 0, tw, th)
+        
     pos = ((size - tw) // 2 - bbox[0], (size - th) // 2 - bbox[1] - int(size * 0.04))
     draw.text(pos, text, font=font, fill=ACCENT)
 

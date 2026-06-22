@@ -43,6 +43,7 @@ from PyQt6.QtWidgets import (
 
 from database import couriers_db, customers_db, orders_db, products_db
 from database.orders_db import STATUS_NEW, STATUS_ON_WAY
+from ui.new_customer_dialog import NewCustomerDialog
 from utils import quick_notes as quick_notes_store
 from utils.helpers import fit_to_screen, format_currency
 
@@ -176,9 +177,23 @@ class OrderDetailDialog(QDialog):
         top_form = QFormLayout()
         top_form.addRow("", self.guest_check)
 
-        # Müşteri satırı + geçmiş butonu
+        # Müşteri satırı + butonlar
         cust_row = QHBoxLayout()
         cust_row.addWidget(self.customer_combo, 1)
+        
+        new_cust_btn = QPushButton("➕ Yeni")
+        new_cust_btn.setObjectName("SecondaryButton")
+        new_cust_btn.setToolTip("Yeni müşteri ekle")
+        new_cust_btn.clicked.connect(self._on_new_customer)
+        cust_row.addWidget(new_cust_btn)
+
+        self.edit_cust_btn = QPushButton("✏️ Düzenle")
+        self.edit_cust_btn.setObjectName("SecondaryButton")
+        self.edit_cust_btn.setToolTip("Seçili müşteriyi düzenle")
+        self.edit_cust_btn.setVisible(False)
+        self.edit_cust_btn.clicked.connect(self._on_edit_customer)
+        cust_row.addWidget(self.edit_cust_btn)
+
         self.history_btn = QPushButton("📋 Geçmiş")
         self.history_btn.setToolTip("Müşterinin sipariş geçmişi")
         self.history_btn.setVisible(False)
@@ -192,6 +207,13 @@ class OrderDetailDialog(QDialog):
 
         addr_row = QHBoxLayout()
         addr_row.addWidget(self.address_combo, 1)
+
+        self.edit_addr_btn = QPushButton("✏️ Düzenle")
+        self.edit_addr_btn.setObjectName("SecondaryButton")
+        self.edit_addr_btn.setToolTip("Seçili adresi düzenle")
+        self.edit_addr_btn.clicked.connect(self._edit_address)
+        addr_row.addWidget(self.edit_addr_btn)
+
         addr_row.addWidget(new_addr_btn)
         self._addr_row_widget = QWidget()
         self._addr_row_widget.setLayout(addr_row)
@@ -644,9 +666,11 @@ class OrderDetailDialog(QDialog):
         if not cust_id:
             self.phone_label.setText("-")
             self.history_btn.setVisible(False)
+            self.edit_cust_btn.setVisible(False)
             return
 
         self.history_btn.setVisible(True)
+        self.edit_cust_btn.setVisible(True)
         cust = next((c for c in self._customers if c.get("id") == cust_id), None)
         if cust:
             self.phone_label.setText(cust.get("phone", "-"))
@@ -667,26 +691,143 @@ class OrderDetailDialog(QDialog):
         if not cust_id:
             QMessageBox.warning(self, "Uyarı", "Önce bir müşteri seçin.")
             return
-        text, ok = QInputDialog.getText(
-            self, "Yeni Adres", "Açık adres:", QLineEdit.EchoMode.Normal, ""
-        )
-        if not ok or not text.strip():
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Yeni Adres")
+        dialog.setMinimumWidth(400)
+        
+        title_input = QLineEdit("Ev")
+        text_input = QTextEdit()
+        text_input.setPlaceholderText("Açık adres...")
+        text_input.setMaximumHeight(80)
+        
+        form = QFormLayout()
+        form.addRow("Başlık:", title_input)
+        form.addRow("Adres:", text_input)
+        
+        btn_layout = QHBoxLayout()
+        cancel_btn = QPushButton("İptal")
+        cancel_btn.clicked.connect(dialog.reject)
+        save_btn = QPushButton("Kaydet")
+        save_btn.setObjectName("SuccessButton")
+        save_btn.clicked.connect(dialog.accept)
+        btn_layout.addStretch()
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(save_btn)
+        
+        layout = QVBoxLayout(dialog)
+        layout.addLayout(form)
+        layout.addLayout(btn_layout)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            title = title_input.text().strip()
+            text = text_input.toPlainText().strip()
+            if not text:
+                return
+            from utils.helpers import to_uppercase_tr
+            try:
+                addr = customers_db.create_address(
+                    cust_id, address_text=to_uppercase_tr(text), title=to_uppercase_tr(title), is_default=False
+                )
+                self._on_customer_changed()
+                new_idx = self.address_combo.findData(addr.get("id"))
+                if new_idx >= 0:
+                    self.address_combo.setCurrentIndex(new_idx)
+            except Exception as exc:  # noqa: BLE001
+                QMessageBox.critical(self, "Hata", str(exc))
+
+    def _edit_address(self) -> None:
+        addr_id = self.address_combo.currentData()
+        if not addr_id:
+            QMessageBox.warning(self, "Uyarı", "Düzenlenecek adresi seçin.")
             return
-        title, ok2 = QInputDialog.getItem(
-            self, "Adres Tipi", "Başlık:", ["Ev", "İş", "Diğer"], 0, True
-        )
-        if not ok2:
+            
+        addr = next((a for a in self._addresses if a.get("id") == addr_id), None)
+        if not addr: 
             return
-        try:
-            addr = customers_db.create_address(
-                cust_id, address_text=text.strip(), title=title, is_default=False
-            )
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Adresi Düzenle")
+        dialog.setMinimumWidth(400)
+        
+        title_input = QLineEdit(addr.get("title", ""))
+        text_input = QTextEdit()
+        text_input.setPlainText(addr.get("address_text", ""))
+        text_input.setMaximumHeight(80)
+        
+        form = QFormLayout()
+        form.addRow("Başlık:", title_input)
+        form.addRow("Adres:", text_input)
+        
+        btn_layout = QHBoxLayout()
+        cancel_btn = QPushButton("İptal")
+        cancel_btn.clicked.connect(dialog.reject)
+        save_btn = QPushButton("Kaydet")
+        save_btn.setObjectName("SuccessButton")
+        save_btn.clicked.connect(dialog.accept)
+        btn_layout.addStretch()
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(save_btn)
+        
+        layout = QVBoxLayout(dialog)
+        layout.addLayout(form)
+        layout.addLayout(btn_layout)
+        
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            new_title = title_input.text().strip()
+            new_text = text_input.toPlainText().strip()
+            if new_title and new_text:
+                from utils.helpers import to_uppercase_tr
+                try:
+                    customers_db.update_address(addr_id, {
+                        "title": to_uppercase_tr(new_title), 
+                        "address_text": to_uppercase_tr(new_text)
+                    })
+                    self._on_customer_changed()
+                    idx = self.address_combo.findData(addr_id)
+                    if idx >= 0:
+                        self.address_combo.setCurrentIndex(idx)
+                except Exception as exc:
+                    QMessageBox.critical(self, "Hata", str(exc))
+
+    def _on_new_customer(self) -> None:
+        dialog = NewCustomerDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.created_customer:
+            cust = dialog.created_customer
+            self._customers.append(cust)
+            from utils.helpers import normalize_phone as np
+            phone = cust.get("phone", "") or ""
+            norm_phone = np(phone) or ""
+            norm_phone_nospace = norm_phone.replace(" ", "")
+            label = f"{cust.get('name')}  ({phone}) {norm_phone_nospace}"
+            self.customer_combo.addItem(label, cust.get("id"))
+            self.customer_combo.setCurrentIndex(self.customer_combo.count() - 1)
+
+    def _on_edit_customer(self) -> None:
+        cust_id = self.customer_combo.currentData()
+        if not cust_id:
+            return
+        dialog = NewCustomerDialog(self, customer_id=cust_id)
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.created_customer:
+            updated_cust = dialog.created_customer
+            # Güncel bilgileri kendi _customers listemize yansıt
+            for i, c in enumerate(self._customers):
+                if c.get("id") == cust_id:
+                    self._customers[i] = updated_cust
+                    break
+            
+            # Combobox metnini güncelle
+            from utils.helpers import normalize_phone as np
+            phone = updated_cust.get("phone", "") or ""
+            norm_phone = np(phone) or ""
+            norm_phone_nospace = norm_phone.replace(" ", "")
+            label = f"{updated_cust.get('name')}  ({phone}) {norm_phone_nospace}"
+            
+            idx = self.customer_combo.currentIndex()
+            self.customer_combo.setItemText(idx, label)
+            
+            # Etiketlerin vs. güncellenmesi için tetikle
             self._on_customer_changed()
-            new_idx = self.address_combo.findData(addr.get("id"))
-            if new_idx >= 0:
-                self.address_combo.setCurrentIndex(new_idx)
-        except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "Hata", str(exc))
 
     def _add_product(self, product: dict[str, Any]) -> None:
         # Aynı ürün varsa miktarı arttır

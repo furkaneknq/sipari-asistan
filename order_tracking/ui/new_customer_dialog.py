@@ -22,11 +22,14 @@ from utils.helpers import format_phone, normalize_phone, parse_maps_link, to_upp
 
 
 class NewCustomerDialog(QDialog):
-    """Yeni müşteri (ve isteğe bağlı varsayılan adres) ekler."""
+    """Yeni müşteri (ve isteğe bağlı varsayılan adres) ekler veya mevcut müşteriyi düzenler."""
 
-    def __init__(self, parent=None, prefill_phone: str = "") -> None:
+    def __init__(
+        self, parent=None, prefill_phone: str = "", customer_id: str | None = None
+    ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Yeni Müşteri")
+        self.customer_id = customer_id
+        self.setWindowTitle("Müşteri Düzenle" if customer_id else "Yeni Müşteri")
         self.setMinimumWidth(400)
         # WindowModal: popup gibi bağımsız top-level pencereleri bloklamasın
         self.setWindowModality(Qt.WindowModality.WindowModal)
@@ -38,7 +41,7 @@ class NewCustomerDialog(QDialog):
 
         self.phone_input = QLineEdit()
         self.phone_input.setPlaceholderText("0532 123 45 67")
-        if prefill_phone:
+        if prefill_phone and not customer_id:
             # Android'den gelen "+905321234567" ham formu yerine
             # okunabilir "0532 123 45 67" göster
             pretty = format_phone(prefill_phone) or prefill_phone
@@ -51,6 +54,7 @@ class NewCustomerDialog(QDialog):
         self.notes_input.setPlaceholderText("Not (opsiyonel)")
         self.notes_input.setMaximumHeight(60)
 
+        # Adres alanları (sadece yeni müşteri oluştururken gösterilir)
         self.address_input = QTextEdit()
         self.address_input.setPlaceholderText("Açık adres (opsiyonel)")
         self.address_input.setMaximumHeight(70)
@@ -69,10 +73,12 @@ class NewCustomerDialog(QDialog):
         form.addRow("Telefon *", self.phone_input)
         form.addRow("E-posta", self.email_input)
         form.addRow("Not", self.notes_input)
-        form.addRow("Adres Başlığı", self.address_title_input)
-        form.addRow("Adres", self.address_input)
-        form.addRow("Konum Linki", self.location_link_input)
-        form.addRow("", self.is_default_checkbox)
+
+        if not customer_id:
+            form.addRow("Adres Başlığı", self.address_title_input)
+            form.addRow("Adres", self.address_input)
+            form.addRow("Konum Linki", self.location_link_input)
+            form.addRow("", self.is_default_checkbox)
 
         save_btn = QPushButton("Kaydet")
         save_btn.setObjectName("SuccessButton")
@@ -91,7 +97,22 @@ class NewCustomerDialog(QDialog):
         layout.addLayout(form)
         layout.addLayout(button_row)
 
+        if self.customer_id:
+            self._load_customer_data()
+
         self.name_input.setFocus()
+
+    def _load_customer_data(self) -> None:
+        try:
+            cust = customers_db.get_customer(self.customer_id)
+            if cust:
+                self.name_input.setText(cust.get("name", ""))
+                pretty = format_phone(cust.get("phone", "")) or cust.get("phone", "")
+                self.phone_input.setText(pretty)
+                self.email_input.setText(cust.get("email", ""))
+                self.notes_input.setPlainText(cust.get("notes", ""))
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.warning(self, "Hata", f"Müşteri bilgileri yüklenemedi: {exc}")
 
     # ------------------------------------------------------------------
     def _on_save(self) -> None:
@@ -99,8 +120,6 @@ class NewCustomerDialog(QDialog):
         phone_raw = self.phone_input.text().strip()
         email = self.email_input.text().strip() or None
         notes = to_uppercase_tr(self.notes_input.toPlainText().strip()) or None
-        address_text = to_uppercase_tr(self.address_input.toPlainText().strip())
-        address_title = to_uppercase_tr(self.address_title_input.text().strip()) or "EV"
 
         if not name or not phone_raw:
             QMessageBox.warning(self, "Eksik Bilgi", "Ad Soyad ve Telefon zorunludur.")
@@ -113,50 +132,66 @@ class NewCustomerDialog(QDialog):
 
         existing = customers_db.get_customer_by_phone(phone)
         if existing and not existing.get("is_guest"):
-            QMessageBox.warning(
-                self,
-                "Zaten Var",
-                "Bu telefon numarası zaten kayıtlı:\n"
-                f"{existing.get('name', '-')}",
-            )
-            return
-
-        # Konum bilgilerini linkten çıkar
-        location_link = self.location_link_input.text().strip()
-        latitude, longitude = parse_maps_link(location_link)
-        if location_link and latitude is None:
-            QMessageBox.warning(
-                self, "Geçersiz Konum Linki",
-                "Girilen linkten konum bilgisi çıkarılamadı.\n"
-                "Google Maps linki veya koordinat (örn: 39.9208,32.8541) yapıştırın."
-            )
-            return
+            if not self.customer_id or existing.get("id") != self.customer_id:
+                QMessageBox.warning(
+                    self,
+                    "Zaten Var",
+                    "Bu telefon numarası zaten kayıtlı:\n"
+                    f"{existing.get('name', '-')}",
+                )
+                return
 
         try:
-            if existing and existing.get("is_guest"):
-                # Misafir kayıt zaten varsa onu gerçek müşteriye yükselt
-                # (UNIQUE phone constraint'ini patlatmadan).
+            if self.customer_id:
                 cust = customers_db.update_customer(
-                    existing["id"],
+                    self.customer_id,
                     {
                         "name": name,
+                        "phone": phone,
                         "email": email,
                         "notes": notes,
                         "is_guest": False,
                     },
                 )
             else:
-                cust = customers_db.create_customer(name, phone, email, notes)
-            cust_id = cust.get("id")
-            if address_text and cust_id:
-                customers_db.create_address(
-                    cust_id,
-                    address_text=address_text,
-                    title=address_title,
-                    latitude=latitude,
-                    longitude=longitude,
-                    is_default=self.is_default_checkbox.isChecked(),
-                )
+                address_text = to_uppercase_tr(self.address_input.toPlainText().strip())
+                address_title = to_uppercase_tr(self.address_title_input.text().strip()) or "EV"
+                
+                # Konum bilgilerini linkten çıkar
+                location_link = self.location_link_input.text().strip()
+                latitude, longitude = parse_maps_link(location_link)
+                if location_link and latitude is None:
+                    QMessageBox.warning(
+                        self, "Geçersiz Konum Linki",
+                        "Girilen linkten konum bilgisi çıkarılamadı.\n"
+                        "Google Maps linki veya koordinat (örn: 39.9208,32.8541) yapıştırın."
+                    )
+                    return
+
+                if existing and existing.get("is_guest"):
+                    # Misafir kayıt zaten varsa onu gerçek müşteriye yükselt
+                    cust = customers_db.update_customer(
+                        existing["id"],
+                        {
+                            "name": name,
+                            "email": email,
+                            "notes": notes,
+                            "is_guest": False,
+                        },
+                    )
+                else:
+                    cust = customers_db.create_customer(name, phone, email, notes)
+                
+                cust_id = cust.get("id")
+                if address_text and cust_id:
+                    customers_db.create_address(
+                        cust_id,
+                        address_text=address_text,
+                        title=address_title,
+                        latitude=latitude,
+                        longitude=longitude,
+                        is_default=self.is_default_checkbox.isChecked(),
+                    )
             self.created_customer = cust
             self.accept()
         except Exception as exc:  # noqa: BLE001

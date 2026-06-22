@@ -46,7 +46,14 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(f"{config.APP_NAME} v{config.APP_VERSION}")
         
-        icon_path = os.path.join(os.path.dirname(__file__), "..", "assets", "app.ico")
+        if getattr(sys, 'frozen', False):
+            # PyInstaller ile derlendiğinde
+            base_dir = sys._MEIPASS
+        else:
+            # Geliştirme ortamında
+            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            
+        icon_path = os.path.join(base_dir, "assets", "app.ico")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
 
