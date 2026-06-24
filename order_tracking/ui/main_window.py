@@ -682,8 +682,22 @@ class MainWindow(QMainWindow):
                 continue
             if not order:
                 continue
+            # Müşteri adını al
+            cust_name = ""
+            cust_data = order.get("customers")
+            if isinstance(cust_data, dict):
+                cust_name = cust_data.get("name", "")
+            elif order.get("customer_id"):
+                try:
+                    cust = customers_db.get_customer(order["customer_id"])
+                    cust_name = (cust or {}).get("name", "")
+                except Exception:  # noqa: BLE001
+                    pass
+
             selected_orders.append({
                 "order_number": order.get("order_number", "?"),
+                "customer_name": cust_name,
+                "notes": order.get("notes") or order.get("note") or "",
                 "items": [
                     {
                         "name": (i.get("products") or {}).get("name") or i.get("name", ""),

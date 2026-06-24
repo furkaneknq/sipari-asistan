@@ -352,7 +352,15 @@ def build_preparation_receipt_text(selected_orders: list[dict[str, Any]]) -> str
         if idx > 0:
             lines.append(_hr("-"))
         order_no = order.get("order_number", "?")
-        lines.append(f"# SİPARİŞ #{order_no}")
+        cust_name = order.get("customer_name", "")
+        if cust_name:
+            lines.append(f"# SİPARİŞ #{order_no}  - {cust_name}")
+        else:
+            lines.append(f"# SİPARİŞ #{order_no}")
+        note = order.get("notes") or order.get("note") or ""
+        if note:
+            for nl in _wrap(f"  Not: {note}", WIDTH):
+                lines.append(nl)
         for item in order.get("items", []):
             name = item.get("name", "")
             qty = item.get("qty", item.get("quantity", 0))
