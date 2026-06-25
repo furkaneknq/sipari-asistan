@@ -189,13 +189,19 @@ def latest_customer() -> dict[str, Any] | None:
     res = (
         get_client()
         .table("customers")
-        .select("name,phone,created_at")
-        .eq("is_guest", False)
+        .select("name,phone,created_at,is_guest")
         .order("created_at", desc=True)
-        .limit(1)
+        .limit(10)
         .execute()
     )
-    return (res.data or [None])[0]
+    for row in (res.data or []):
+        if row.get("is_guest") is True:
+            continue
+        phone = row.get("phone") or ""
+        if phone.startswith("GUEST"):
+            continue
+        return row
+    return None
 
 
 def count_customer_orders(customer_id: str) -> int:

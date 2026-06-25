@@ -18,15 +18,7 @@ from PyQt6.QtWidgets import (
 )
 
 from database import orders_db
-
-# Durum etiketleri
-_STATUS_TR = {
-    "pending": "Bekliyor",
-    "preparing": "Hazırlanıyor",
-    "on_the_way": "Yolda",
-    "delivered": "Teslim",
-    "cancelled": "İptal",
-}
+from database.orders_db import STATUS_LABELS
 
 COL_NO, COL_DATE, COL_TIME, COL_ADDR, COL_AMT, COL_STATUS = range(6)
 
@@ -138,7 +130,7 @@ class OrderHistoryDialog(QDialog):
             )
 
             # Durum
-            status = _STATUS_TR.get(o.get("status", ""), o.get("status", "-"))
+            status = STATUS_LABELS.get(o.get("status", ""), o.get("status", "-"))
             self.table.setItem(row_idx, COL_STATUS, QTableWidgetItem(status))
 
         self.table.resizeColumnsToContents()
