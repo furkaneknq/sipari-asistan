@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="tr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="Sipariş Takip Sistemi - Restoran ve Paket Sipariş Yönetim Paneli">
+  <meta name="theme-color" content="#0b0f19">
+  <title>Sipariş Takip Sistemi</title>
+
+  <!-- Google Fonts: Outfit & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Ana Stil Dosyası -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+
+    <!-- ÜST BAŞLIK (HEADER) -->
+    <header class="app-header">
+      <div class="brand-section">
+        <div class="brand-logo-icon">🍕</div>
+        <div>
+          <div style="display:flex; align-items:center;">
+            <h1 class="brand-title">Sipariş Takip Sistemi</h1>
+            <span class="brand-badge">WEB PORT</span>
+          </div>
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:1px;">
+            Saat: <span id="header-live-time">--:--:--</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <span id="realtime-badge" class="status-badge status-connecting">○ Bağlanıyor...</span>
+        
+        <button id="btn-new-order-global" class="btn-primary" title="Yeni Sipariş Oluştur (F2)">
+          <span>➕</span>
+          <span>Yeni Sipariş</span>
+        </button>
+
+        <button id="btn-theme-toggle" class="btn-icon" title="Temayı Değiştir">
+          ☀️
+        </button>
+      </div>
+    </header>
+
+    <!-- NAVİGASYON SEKME MENÜSÜ -->
+    <nav class="nav-tabs-container">
+      <button class="nav-tab-btn active" data-tab="orders">
+        <span>📋</span>
+        <span>Siparişler</span>
+      </button>
+      <button class="nav-tab-btn" data-tab="calls">
+        <span>📞</span>
+        <span>Gelen Aramalar</span>
+      </button>
+      <button class="nav-tab-btn" data-tab="customers">
+        <span>👥</span>
+        <span>Müşteriler</span>
+      </button>
+      <button class="nav-tab-btn" data-tab="products">
+        <span>📦</span>
+        <span>Ürünler</span>
+      </button>
+      <button class="nav-tab-btn" data-tab="couriers">
+        <span>🏍️</span>
+        <span>Kuryeler</span>
+      </button>
+      <button class="nav-tab-btn" data-tab="settings">
+        <span>⚙️</span>
+        <span>Ayarlar</span>
+      </button>
+    </nav>
+
+    <!-- ANA İÇERİK ALANI -->
+    <main class="main-content">
+
+      <!-- =============================================================== -->
+      <!-- 1. SEKME: SİPARİŞLER (ORDERS)                                   -->
+      <!-- =============================================================== -->
+      <section id="tab-orders" class="tab-pane active orders-page">
+        <!-- KPI İstatistik Kartları -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-icon-box kpi-icon-primary">📋</div>
+            <div>
+              <div class="kpi-label">Toplam Sipariş</div>
+              <div id="kpi-total-orders" class="kpi-value">0</div>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon-box kpi-icon-success">💰</div>
+            <div>
+              <div class="kpi-label">Toplam Tutar</div>
+              <div id="kpi-total-ciro" class="kpi-value">0,00 ₺</div>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon-box kpi-icon-info">✅</div>
+            <div>
+              <div class="kpi-label">Tahsil Edilen (Ödenen)</div>
+              <div id="kpi-paid-total" class="kpi-value" style="color:var(--success);">0,00 ₺</div>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon-box kpi-icon-warning">⏳</div>
+            <div>
+              <div class="kpi-label">Kalan (Bekleyen Alacak)</div>
+              <div id="kpi-remaining-total" class="kpi-value" style="color:var(--warning);">0,00 ₺</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filtre ve Kontrol Çubuğu -->
+        <div class="filter-bar">
+          <div class="filter-group-left">
+            <button class="filter-chip-btn filter-date-chip active" data-mode="today">Bugün</button>
+            <button class="filter-chip-btn filter-date-chip" data-mode="yesterday">Dün</button>
+            <button class="filter-chip-btn filter-date-chip" data-mode="all">Tüm Zamanlar</button>
+            <input type="date" id="filter-order-date" class="filter-input" title="Tarih Seç">
+
+            <select id="filter-order-status" class="filter-select">
+              <option value="all">Tüm Durumlar</option>
+              <option value="new">Yeni</option>
+              <option value="on_way">Yolda</option>
+              <option value="delivered">Teslim Edildi</option>
+              <option value="cancelled">İptal</option>
+            </select>
+
+            <select id="filter-order-courier" class="filter-select">
+              <option value="__all__">Tüm Kuryeler</option>
+            </select>
+          </div>
+
+          <div style="display:flex; gap:0.5rem; align-items:center;">
+            <div class="search-input-box">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="search-orders-input" class="filter-input" placeholder="Müşteri adı, tel veya S.No...">
+            </div>
+            <button id="btn-refresh-orders" class="btn-icon" title="Listeyi Yenile">🔄</button>
+          </div>
+        </div>
+
+        <!-- Siparişler Tablosu ve Detay Çekmecesi -->
+        <div class="orders-split-layout">
+          <div class="table-wrapper">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>S.No</th>
+                  <th>Saat</th>
+                  <th>Müşteri</th>
+                  <th>Kurye</th>
+                  <th>Ödeme</th>
+                  <th style="min-width:115px;">Toplam Tutar</th>
+                  <th style="min-width:145px;">Ödenen Tutar</th>
+                  <th>Durum</th>
+                </tr>
+              </thead>
+              <tbody id="orders-table-body">
+                <tr><td colspan="8" style="text-align:center; padding: 2rem;">Yükleniyor...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Seçilen Sipariş Detay Paneli (Drawer) -->
+          <aside id="order-detail-drawer" class="order-detail-drawer">
+            <!-- Dinamik olarak JS tarafından doldurulacak -->
+          </aside>
+        </div>
+      </section>
+
+      <!-- =============================================================== -->
+      <!-- 2. SEKME: GELEN ARAMALAR (CALLS)                                -->
+      <!-- =============================================================== -->
+      <section id="tab-calls" class="tab-pane">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+          <h2>📞 Gelen Arama Geçmişi</h2>
+          <button id="btn-refresh-calls" class="btn-secondary">🔄 Yenile</button>
+        </div>
+        <div class="table-wrapper">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Telefon Numarası</th>
+                <th>Eşleşen Müşteri</th>
+                <th>Tarih & Saat</th>
+                <th>İşlem Durumu</th>
+                <th>Hızlı Eylem</th>
+              </tr>
+            </thead>
+            <tbody id="calls-table-body">
+              <tr><td colspan="5" style="text-align:center; padding: 2rem;">Yükleniyor...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- =============================================================== -->
+      <!-- 3. SEKME: MÜŞTERİLER (CUSTOMERS)                                -->
+      <!-- =============================================================== -->
+      <section id="tab-customers" class="tab-pane">
+        <div class="filter-bar" style="margin-bottom:1.25rem;">
+          <div class="search-input-box" style="flex:1; max-width:400px;">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="search-customers-input" class="filter-input" placeholder="İsim veya telefon ile ara...">
+          </div>
+          <button id="btn-new-customer" class="btn-primary">
+            <span>➕</span>
+            <span>Yeni Müşteri Ekle</span>
+          </button>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Müşteri Adı</th>
+                <th>Telefon</th>
+                <th>Notlar</th>
+                <th>Kayıt Tarihi</th>
+                <th>İşlemler</th>
+              </tr>
+            </thead>
+            <tbody id="customers-table-body">
+              <tr><td colspan="5" style="text-align:center; padding: 2rem;">Yükleniyor...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- =============================================================== -->
+      <!-- 4. SEKME: ÜRÜNLER (PRODUCTS & CATEGORIES)                       -->
+      <!-- =============================================================== -->
+      <section id="tab-products" class="tab-pane">
+        <div style="display:grid; grid-template-columns:300px 1fr; gap:1.5rem; align-items:start;">
+          <!-- Sol Sütun: Kategoriler -->
+          <div class="table-wrapper" style="padding:1.25rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+              <h3 style="font-size:1.1rem;">Kategoriler</h3>
+              <button id="btn-new-category" class="btn-secondary" style="font-size:0.8rem; padding:0.35rem 0.6rem;">➕ Yeni</button>
+            </div>
+            <div id="categories-list-container" style="display:flex; flex-direction:column; gap:0.5rem;">
+              <!-- Kategoriler JS ile listelenir -->
+            </div>
+          </div>
+
+          <!-- Sağ Sütun: Ürünler -->
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+              <h3 style="font-size:1.1rem;">Ürün Listesi</h3>
+              <button id="btn-new-product" class="btn-primary">➕ Yeni Ürün Ekle</button>
+            </div>
+            <div class="table-wrapper">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Ürün Adı</th>
+                    <th>Kategori</th>
+                    <th>Fiyat & Birim</th>
+                    <th>Durum</th>
+                    <th>İşlemler</th>
+                  </tr>
+                </thead>
+                <tbody id="products-table-body">
+                  <tr><td colspan="5" style="text-align:center; padding: 2rem;">Yükleniyor...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =============================================================== -->
+      <!-- 5. SEKME: KURYELER (COURIERS)                                   -->
+      <!-- =============================================================== -->
+      <section id="tab-couriers" class="tab-pane">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
+          <h2>🏍️ Kurye Yönetimi</h2>
+          <button id="btn-new-courier" class="btn-primary">➕ Yeni Kurye Ekle</button>
+        </div>
+        <div class="table-wrapper">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Kurye Adı</th>
+                <th>Telefon</th>
+                <th>Durum</th>
+                <th>İşlemler</th>
+              </tr>
+            </thead>
+            <tbody id="couriers-table-body">
+              <tr><td colspan="4" style="text-align:center; padding: 2rem;">Yükleniyor...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- =============================================================== -->
+      <!-- 6. SEKME: AYARLAR (SETTINGS)                                    -->
+      <!-- =============================================================== -->
+      <section id="tab-settings" class="tab-pane">
+        <div style="max-width:800px; display:flex; flex-direction:column; gap:1.5rem;">
+          <div class="table-wrapper" style="padding:1.5rem;">
+            <h3 style="margin-bottom:1rem;">🔌 Supabase Veritabanı Bağlantısı</h3>
+            <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.25rem;">
+              Bu ayarlar tarayıcınızın hafızasında (localStorage) saklanır. Cihazınızı değiştirdiğinizde veya başka telefondan girdiğinizde buradan tekrar yapılandırabilirsiniz.
+            </p>
+
+            <form id="settings-form" style="display:flex; flex-direction:column; gap:1rem;">
+              <div class="form-group">
+                <label class="form-label">Supabase URL</label>
+                <input type="text" id="setting-supabase-url" class="form-control" required>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Supabase API Key (Service Role veya Anon Key)</label>
+                <input type="password" id="setting-supabase-key" class="form-control" required>
+              </div>
+
+              <div id="db-test-result" style="display:none; padding:0.75rem; border-radius:var(--radius-md); font-weight:600; font-size:0.9rem;"></div>
+
+              <div style="display:flex; gap:0.75rem; margin-top:0.5rem;">
+                <button type="submit" class="btn-primary">💾 Ayarları Kaydet</button>
+                <button type="button" id="btn-test-db" class="btn-secondary">⚡ Bağlantıyı Test Et</button>
+                <button type="button" id="btn-reset-db" class="btn-secondary" style="color:var(--danger); border-color:var(--danger);">Varsayılanlara Sıfırla</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="table-wrapper" style="padding:1.5rem;">
+            <h3 style="margin-bottom:1rem;">🔔 Bildirim & Ses Tercihleri</h3>
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <div>
+                <div style="font-weight:700;">Gelen Arama Zili</div>
+                <div style="color:var(--text-muted); font-size:0.85rem;">Android arama aktarımından çağrı geldiğinde çan sesi çalınır.</div>
+              </div>
+              <div style="display:flex; gap:0.75rem; align-items:center;">
+                <button id="btn-test-sound" class="btn-secondary" style="font-size:0.85rem;">🔊 Test Sesi Çal</button>
+                <input type="checkbox" id="setting-sound-enabled" style="width:20px; height:20px; cursor:pointer;" checked>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- SAĞ ÜST GELEN ARAMA POPUP KONTEYNERİ -->
+    <div id="call-toast-container" class="call-toast-container"></div>
+
+    <!-- SİSTEM BİLDİRİM TOAST KONTEYNERİ -->
+    <div id="system-toast-container" class="system-toast-container"></div>
+
+  </div> <!-- /app-container -->
+
+  <!-- =================================================================== -->
+  <!-- MODALLAR                                                            -->
+  <!-- =================================================================== -->
+
+  <!-- 1. SİPARİŞ MODALI (YENİ / DÜZENLE) -->
+  <div id="order-modal" class="modal-backdrop">
+    <div class="modal-card" style="max-width:960px;">
+      <div class="modal-header">
+        <h3 id="order-modal-title" class="modal-title">🛍️ Yeni Sipariş Oluştur</h3>
+        <button type="button" id="btn-close-order-modal" class="btn-icon">✕</button>
+      </div>
+
+      <form id="order-form" class="modal-body">
+        <!-- Üst Satır: Müşteri Seçimi & Misafir Modu -->
+        <div style="background:var(--bg-surface-elevated); padding:1rem; border-radius:var(--radius-md); display:flex; flex-direction:column; gap:0.75rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-weight:700; font-size:0.95rem;">👤 Müşteri Bilgileri</span>
+            <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; cursor:pointer; font-weight:600;">
+              <input type="checkbox" id="order-is-guest">
+              <span>Tek Seferlik (Misafir) Sipariş</span>
+            </label>
+          </div>
+
+          <!-- Kayıtlı Müşteri Bölümü -->
+          <div id="registered-customer-section" style="position:relative;">
+            <input type="hidden" id="order-customer-id">
+            <div id="selected-customer-info"></div>
+            <input type="text" id="order-customer-search" class="form-control" placeholder="Müşteri adı veya telefon yazarak arayın..." autocomplete="off">
+            <div id="customer-search-results" style="display:none; position:absolute; top:100%; left:0; right:0; background:var(--bg-surface); border:1px solid var(--border-strong); border-radius:var(--radius-md); z-index:100; max-height:220px; overflow-y:auto; box-shadow:var(--shadow-lg);"></div>
+            
+            <div style="margin-top:0.75rem;">
+              <label class="form-label">Teslimat Adresi</label>
+              <select id="order-address-select" class="form-control">
+                <option value="">Önce bir müşteri seçiniz</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Misafir Müşteri Bölümü -->
+          <div id="guest-customer-section" class="form-grid" style="display:none;">
+            <div class="form-group">
+              <label class="form-label">Müşteri Adı (Opsiyonel)</label>
+              <input type="text" id="guest-name" class="form-control" placeholder="Örn: Ahmet Yılmaz">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Telefon Numarası *</label>
+              <input type="tel" id="guest-phone" class="form-control" placeholder="05XXXXXXXXX">
+            </div>
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label class="form-label">Teslimat Adresi</label>
+              <input type="text" id="guest-address" class="form-control" placeholder="Mahalle, cadde, sokak, no, daire...">
+            </div>
+          </div>
+        </div>
+
+        <!-- Orta Bölüm: Ürün Kataloğu ve Sepet -->
+        <div style="display:grid; grid-template-columns:1fr 340px; gap:1.25rem;">
+          <!-- Sol: Kategori Hapları ve Ürün Kartları -->
+          <div style="display:flex; flex-direction:column; gap:0.6rem;">
+            <div id="order-categories-pills" class="category-pills">
+              <!-- JS ile kategori butonları basılır -->
+            </div>
+            <div id="order-products-picker" class="products-grid-picker">
+              <!-- JS ile ürün kartları basılır -->
+            </div>
+          </div>
+
+          <!-- Sağ: Sepet Kalemleri -->
+          <div style="background:var(--bg-surface-elevated); padding:1rem; border-radius:var(--radius-md); display:flex; flex-direction:column; justify-content:space-between;">
+            <div>
+              <div style="font-weight:700; font-size:0.9rem; margin-bottom:0.6rem;">Sepetteki Ürünler</div>
+              <div id="order-cart-items" style="display:flex; flex-direction:column; gap:0.4rem; max-height:220px; overflow-y:auto;">
+                <!-- JS ile sepet kalemleri basılır -->
+              </div>
+            </div>
+
+            <div style="border-top:1px solid var(--border-subtle); padding-top:0.75rem; margin-top:0.75rem; display:flex; flex-direction:column; gap:0.5rem;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:0.85rem; color:var(--text-muted);">Sepet Tutarı:</span>
+                <span id="order-cart-total" style="font-weight:700; color:var(--text-muted);">0,00 ₺</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
+                <label class="form-label" style="margin:0; font-weight:700;">Toplam Tutar:</label>
+                <div style="display:flex; align-items:center; gap:4px;">
+                  <input type="number" step="0.5" id="order-total-amount-input" class="form-control" style="width:115px; text-align:right; font-weight:800; font-size:1.05rem; color:var(--success);" value="0.00">
+                  <span style="font-weight:700;">₺</span>
+                </div>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
+                <label class="form-label" style="margin:0; font-weight:700;">Ödenen Tutar:</label>
+                <div style="display:flex; align-items:center; gap:4px;">
+                  <input type="number" step="0.5" id="order-paid-amount-input" class="form-control" style="width:105px; text-align:right; font-weight:800; font-size:1.05rem;" value="0.00">
+                  <button type="button" id="btn-fill-paid-total" class="btn-secondary" style="padding:4px 6px; font-size:0.75rem; white-space:nowrap;" title="Sepet Toplamına Eşitle">= Sepet</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Alt Bölüm: Kurye, Ödeme ve Notlar -->
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Kurye Ata</label>
+            <select id="order-courier-select" class="form-control">
+              <option value="">-- Kurye Seçiniz (Opsiyonel) --</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Sipariş Durumu</label>
+            <select id="order-status-select" class="form-control">
+              <option value="new">Yeni</option>
+              <option value="preparing">Hazırlanıyor</option>
+              <option value="on_way">Yolda</option>
+              <option value="delivered">Teslim Edildi</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Ödeme Yöntemi</label>
+            <select id="order-payment-method" class="form-control">
+              <option value="cash">Nakit</option>
+              <option value="credit_card">Kredi Kartı</option>
+              <option value="iban">IBAN / Havale</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Ödeme Durumu</label>
+            <select id="order-payment-status" class="form-control">
+              <option value="pending">Ödeme Bekliyor</option>
+              <option value="paid">Ödendi</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Hızlı Notlar -->
+        <div class="form-group">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <label class="form-label">Sipariş Notu</label>
+            <div class="quick-notes-container">
+              <button type="button" class="quick-note-chip order-quick-note">Acil</button>
+              <button type="button" class="quick-note-chip order-quick-note">Kapıda Kart</button>
+              <button type="button" class="quick-note-chip order-quick-note">Zili Çalma</button>
+              <button type="button" class="quick-note-chip order-quick-note">Para Üstü Hazırla</button>
+              <button type="button" class="quick-note-chip order-quick-note">Temassız Teslimat</button>
+            </div>
+          </div>
+          <input type="text" id="order-notes" class="form-control" placeholder="Özel teslimat veya ürün hazırlık notu...">
+        </div>
+
+        <div class="modal-footer" style="padding:0; margin-top:0.5rem; border:none;">
+          <button type="button" id="btn-cancel-order-modal" class="btn-secondary">İptal</button>
+          <button type="submit" class="btn-primary" style="padding:0.75rem 2rem;">💾 Siparişi Kaydet</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. MÜŞTERİ EKLEME/DÜZENLEME MODALI -->
+  <div id="customer-modal" class="modal-backdrop">
+    <div class="modal-card" style="max-width:550px;">
+      <div class="modal-header">
+        <h3 id="customer-modal-title" class="modal-title">👤 Müşteri Kaydı</h3>
+        <button type="button" id="btn-close-customer-modal" class="btn-icon">✕</button>
+      </div>
+      <form id="customer-form" class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Müşteri Adı & Soyadı *</label>
+          <input type="text" id="cust-name" class="form-control" placeholder="Örn: Fatma Demir" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Telefon Numarası *</label>
+          <input type="tel" id="cust-phone" class="form-control" placeholder="05XXXXXXXXX" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">E-Posta (Opsiyonel)</label>
+          <input type="email" id="cust-email" class="form-control" placeholder="musteri@ornek.com">
+        </div>
+        <div id="cust-address-group" class="form-group">
+          <label class="form-label">Varsayılan Adres</label>
+          <textarea id="cust-address" class="form-control" rows="2" placeholder="Cadde, sokak, no, daire..."></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Müşteri Notu</label>
+          <input type="text" id="cust-notes" class="form-control" placeholder="Daimi müşteri, özel istekler vb.">
+        </div>
+        <div class="modal-footer" style="padding:0; border:none; margin-top:0.5rem;">
+          <button type="submit" class="btn-primary" style="width:100%;">💾 Müşteriyi Kaydet</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. ÜRÜN MODALI -->
+  <div id="product-modal" class="modal-backdrop">
+    <div class="modal-card" style="max-width:500px;">
+      <div class="modal-header">
+        <h3 id="product-modal-title" class="modal-title">📦 Ürün Ekle</h3>
+        <button type="button" id="btn-close-product-modal" class="btn-icon">✕</button>
+      </div>
+      <form id="product-form" class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Ürün Adı *</label>
+          <input type="text" id="prod-name" class="form-control" placeholder="Örn: Kıymalı Pide" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Kategori</label>
+          <select id="prod-category-select" class="form-control">
+            <option value="">-- Kategori Seçiniz --</option>
+          </select>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Fiyat (₺) *</label>
+            <input type="number" step="0.5" id="prod-price" class="form-control" placeholder="0.00" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Birim</label>
+            <input type="text" id="prod-unit" class="form-control" value="adet" placeholder="adet, porsiyon, kg">
+          </div>
+        </div>
+        <div class="form-group">
+          <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+            <input type="checkbox" id="prod-active" checked>
+            <span>Ürün Satışta Aktif</span>
+          </label>
+        </div>
+        <div class="modal-footer" style="padding:0; border:none;">
+          <button type="submit" class="btn-primary" style="width:100%;">💾 Ürünü Kaydet</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. KATEGORİ MODALI -->
+  <div id="category-modal" class="modal-backdrop">
+    <div class="modal-card" style="max-width:450px;">
+      <div class="modal-header">
+        <h3 id="category-modal-title" class="modal-title">🏷️ Kategori Ekle</h3>
+        <button type="button" id="btn-close-category-modal" class="btn-icon">✕</button>
+      </div>
+      <form id="category-form" class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Kategori Adı *</label>
+          <input type="text" id="cat-name" class="form-control" placeholder="Örn: Pideler, Tatlılar" required>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Etiket Rengi</label>
+            <input type="color" id="cat-color" class="form-control" value="#6366f1" style="height:42px; padding:2px;">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sıralama No</label>
+            <input type="number" id="cat-sort" class="form-control" value="0">
+          </div>
+        </div>
+        <div class="modal-footer" style="padding:0; border:none;">
+          <button type="submit" class="btn-primary" style="width:100%;">💾 Kategoriyi Kaydet</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 5. KURYE MODALI -->
+  <div id="courier-modal" class="modal-backdrop">
+    <div class="modal-card" style="max-width:480px;">
+      <div class="modal-header">
+        <h3 id="courier-modal-title" class="modal-title">🏍️ Kurye Ekle</h3>
+        <button type="button" id="btn-close-courier-modal" class="btn-icon">✕</button>
+      </div>
+      <form id="courier-form" class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Kurye Adı Soyadı *</label>
+          <input type="text" id="courier-name" class="form-control" placeholder="Örn: Ali Kaya" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Telefon Numarası *</label>
+          <input type="tel" id="courier-phone" class="form-control" placeholder="05XXXXXXXXX" required>
+        </div>
+        <div class="form-group">
+          <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+            <input type="checkbox" id="courier-active" checked>
+            <span>Kurye Aktif</span>
+          </label>
+        </div>
+        <div class="modal-footer" style="padding:0; border:none;">
+          <button type="submit" class="btn-primary" style="width:100%;">💾 Kuryeyi Kaydet</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Supabase JS CDN (UMD - Global window.supabase) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Uygulama Paketi (Hem file:/// hem de http:// protokollerinde tam uyumlu) -->
+  <script src="js/bundle.js"></script>
+</body>
+</html>
