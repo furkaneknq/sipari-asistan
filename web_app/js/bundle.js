@@ -11,7 +11,8 @@
   // 1. YAPILANDIRMA (CONFIG)
   // =========================================================================
   const DEFAULT_SUPABASE_URL = "https://xgvlgmikxchpttydtelb.supabase.co";
-  const DEFAULT_SUPABASE_KEY = "sb_secret_ifcYo6gAkhIJ9NR_936R-g_ITqPSBJE";
+  // Güvenlik: Secret key burada saklanmıyor. Kullanıcı Ayarlar panelinden girer.
+  const DEFAULT_SUPABASE_KEY = "";
 
   const config = {
     getSupabaseUrl() {

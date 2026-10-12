@@ -21,7 +21,11 @@ export default async function handler(req, res) {
 
   try {
     const supabaseBaseUrl = process.env.SUPABASE_URL || "https://xgvlgmikxchpttydtelb.supabase.co";
-    const supabaseKey = process.env.SUPABASE_KEY || "sb_secret_ifcYo6gAkhIJ9NR_936R-g_ITqPSBJE";
+    const supabaseKey = process.env.SUPABASE_KEY;
+    if (!supabaseKey) {
+      res.status(500).json({ error: "SUPABASE_KEY environment variable not set on server." });
+      return;
+    }
 
     // Gelen yol (path) ve sorgu parametreleri
     const host = req.headers.host || 'localhost';

@@ -42,3 +42,6 @@ Proje-Windows.zip
 *.log
 
 *.hprof
+
+# Buyuk SQL yedek dosyalari
+*.sql

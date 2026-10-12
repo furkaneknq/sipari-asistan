@@ -4,8 +4,8 @@
  */
 
 const DEFAULT_SUPABASE_URL = "https://xgvlgmikxchpttydtelb.supabase.co";
-// order_tracking/.env dosyasından alınan anahtar (kullanıcı Ayarlar'dan değiştirebilir)
-const DEFAULT_SUPABASE_KEY = "sb_secret_ifcYo6gAkhIJ9NR_936R-g_ITqPSBJE";
+// Güvenlik: Secret key burada saklanmıyor. Kullanıcı Ayarlar panelinden girer.
+const DEFAULT_SUPABASE_KEY = "";
 
 export const config = {
   getSupabaseUrl() {
